@@ -114,6 +114,20 @@ const electronAPI = {
       ipcRenderer.removeListener('file:open-from-main', handler)
     }
   },
+
+  // ── Unsaved-changes close flow ──
+  onBeforeClose: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('app:check-before-close', handler)
+    return () => ipcRenderer.removeListener('app:check-before-close', handler)
+  },
+  onSaveAllThenClose: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('app:save-all-then-close', handler)
+    return () => ipcRenderer.removeListener('app:save-all-then-close', handler)
+  },
+  reportDirtyState: (hasDirty: boolean): void => { ipcRenderer.send('app:dirty-state', hasDirty) },
+  reportAllSaved: (): void => { ipcRenderer.send('app:all-saved') },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

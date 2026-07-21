@@ -53,6 +53,10 @@ export type ElectronAPI = {
   onDirectoryChanged: (callback: (info: { eventType: string; filename: string | null }) => void) => () => void
   onMenuAction: (callback: (action: string) => void) => () => void
   onOpenFile: (callback: (filePath: string) => void) => () => void
+  onBeforeClose: (callback: () => void) => () => void
+  onSaveAllThenClose: (callback: () => void) => () => void
+  reportDirtyState: (hasDirty: boolean) => void
+  reportAllSaved: () => void
 }
 
 declare global {

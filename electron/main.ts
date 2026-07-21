@@ -1,12 +1,25 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron'
 import fs from 'node:fs/promises'
-import { watch } from 'node:fs'
+import { watch, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 
+// ─── Single instance lock ────────────────────────────────
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+}
+
 let mainWindow: BrowserWindow | null = null
 let fileToOpen: string | null = null
+let isForceClosing = false
+
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  }
+})
 
 app.on('open-file', (event, filePath) => {
   event.preventDefault()
@@ -16,6 +29,26 @@ app.on('open-file', (event, filePath) => {
     fileToOpen = filePath
   }
 })
+
+// ─── Window state persistence ────────────────────────────
+const windowStatePath = () => path.join(app.getPath('userData'), 'window-state.json')
+
+function loadWindowState(): { x?: number; y?: number; width: number; height: number; isMaximized?: boolean } {
+  try {
+    return JSON.parse(readFileSync(windowStatePath(), 'utf-8'))
+  } catch {
+    return { width: 1280, height: 860 }
+  }
+}
+
+function saveWindowState() {
+  if (!mainWindow) return
+  try {
+    const bounds = mainWindow.getBounds()
+    const isMaximized = mainWindow.isMaximized()
+    writeFileSync(windowStatePath(), JSON.stringify({ ...bounds, isMaximized }))
+  } catch { /* ignore */ }
+}
 
 const isDev = !app.isPackaged
 
@@ -33,9 +66,12 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 function createWindow() {
+  const saved = loadWindowState()
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 860,
+    width: saved.width,
+    height: saved.height,
+    ...(saved.x !== undefined && saved.y !== undefined ? { x: saved.x, y: saved.y } : {}),
     minWidth: 720,
     minHeight: 480,
     titleBarStyle: 'hiddenInset',
@@ -49,8 +85,25 @@ function createWindow() {
     },
   })
 
+  if (saved.isMaximized) mainWindow.maximize()
+
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
+  })
+
+  // Throttled window-geometry save
+  let saveTimer: ReturnType<typeof setTimeout> | null = null
+  const debouncedSave = () => { if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(saveWindowState, 300) }
+  mainWindow.on('resize', debouncedSave)
+  mainWindow.on('move', debouncedSave)
+
+  // Unsaved-changes guard
+  mainWindow.on('close', (event) => {
+    saveWindowState()
+    if (!isForceClosing) {
+      event.preventDefault()
+      mainWindow?.webContents.send('app:check-before-close')
+    }
   })
 
   // Prevent in-app navigation when clicking external links
@@ -77,6 +130,7 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null
+    isForceClosing = false
   })
 }
 
@@ -635,6 +689,37 @@ ipcMain.handle('app:ready-to-open', () => {
   return null
 })
 
+// ─── Unsaved-changes close flow ──────────────────────────
+ipcMain.on('app:dirty-state', (_event, hasDirty: boolean) => {
+  if (!hasDirty) {
+    isForceClosing = true
+    mainWindow?.close()
+    return
+  }
+
+  const choice = dialog.showMessageBoxSync(mainWindow!, {
+    type: 'warning',
+    buttons: ['Guardar y cerrar', 'Cerrar sin guardar', 'Cancelar'],
+    defaultId: 0,
+    cancelId: 2,
+    title: 'Cambios sin guardar',
+    message: 'Tienes archivos con cambios sin guardar.',
+    detail: '¿Qué deseas hacer antes de cerrar la aplicación?',
+  })
+
+  if (choice === 0) {
+    mainWindow?.webContents.send('app:save-all-then-close')
+  } else if (choice === 1) {
+    isForceClosing = true
+    mainWindow?.close()
+  }
+  // 2 = Cancelar → no hacer nada
+})
+
+ipcMain.on('app:all-saved', () => {
+  isForceClosing = true
+  mainWindow?.close()
+})
 
 
 app.whenReady().then(() => {

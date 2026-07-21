@@ -98,6 +98,8 @@ function App() {
   const previewHandleRef = useRef<{ scrollToLine: (line: number) => void } | null>(null)
   const scrollSourceRef = useRef<'editor' | 'preview' | null>(null)
   const scrollGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tabsRef = useRef(tabs)
+  tabsRef.current = tabs
 
   // Active Tab Derived State
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
@@ -675,6 +677,32 @@ function App() {
 
     return unsubscribe
   }, [openFilePath])
+
+  // ─── Unsaved-changes close guard ────────────────────────
+
+  useEffect(() => {
+    if (!hasElectronAPI()) return
+    const api = getElectronAPI()
+
+    const unsubClose = api.onBeforeClose(() => {
+      const hasDirty = tabsRef.current.some((t) => t.content !== t.savedContent)
+      api.reportDirtyState(hasDirty)
+    })
+
+    const unsubSave = api.onSaveAllThenClose(async () => {
+      for (const tab of tabsRef.current) {
+        if (tab.content !== tab.savedContent && tab.filePath) {
+          await api.saveFile(tab.content, tab.filePath)
+        }
+      }
+      api.reportAllSaved()
+    })
+
+    return () => {
+      unsubClose()
+      unsubSave()
+    }
+  }, [])
 
   // ─── Keyboard shortcuts ───────────────────────────────
 
