@@ -4,7 +4,6 @@ import { watch } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const __dirname = path.dirname(path.resolve(process.argv[1] ?? '.'))
 
 let mainWindow: BrowserWindow | null = null
 
