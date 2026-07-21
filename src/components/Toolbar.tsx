@@ -25,11 +25,15 @@ type ToolbarProps = {
   isDirty: boolean
   viewMode: ViewMode
   theme: Theme
+  focusMode?: boolean
   onOpen: () => void
   onSave: () => void
   onSaveAs: () => void
   onExportPdf: () => void
+  onExportHtml?: () => void
+  onCopyRichText?: () => void
   onThemeToggle: () => void
+  onFocusModeToggle?: () => void
   onViewModeChange: (mode: ViewMode) => void
   onSettingsOpen: () => void
 }
@@ -45,11 +49,15 @@ export function Toolbar({
   isDirty,
   viewMode,
   theme,
+  focusMode = false,
   onOpen,
   onSave,
   onSaveAs,
   onExportPdf,
+  onExportHtml,
+  onCopyRichText,
   onThemeToggle,
+  onFocusModeToggle,
   onViewModeChange,
   onSettingsOpen,
 }: ToolbarProps) {
@@ -81,6 +89,26 @@ export function Toolbar({
       </div>
 
       <div className="toolbar-right">
+        {onFocusModeToggle && (
+          <button
+            type="button"
+            className={`action-btn ${focusMode ? 'action-btn--accent' : ''}`}
+            onClick={onFocusModeToggle}
+            title="Alternar Modo Enfoque"
+          >
+            Enfoque
+          </button>
+        )}
+        {onCopyRichText && (
+          <button
+            type="button"
+            className="action-btn"
+            onClick={onCopyRichText}
+            title="Copiar contenido con formato enriquecido para pegar en Mail/Word/Slack"
+          >
+            Copiar Rich Text
+          </button>
+        )}
         <button
           type="button"
           className="action-btn action-btn--icon"
@@ -111,6 +139,16 @@ export function Toolbar({
         >
           Guardar como
         </button>
+        {onExportHtml && (
+          <button
+            type="button"
+            className="action-btn"
+            onClick={onExportHtml}
+            title="Exportar archivo HTML completo"
+          >
+            HTML
+          </button>
+        )}
         <button
           type="button"
           className="action-btn action-btn--accent"
@@ -123,3 +161,4 @@ export function Toolbar({
     </header>
   )
 }
+

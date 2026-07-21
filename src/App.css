@@ -1956,3 +1956,103 @@ body {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
+
+/* ── Tab Drag & Drop ── */
+
+.tab-item[draggable="true"] {
+  cursor: grab;
+}
+
+.tab-item.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.tab-item.drag-over {
+  border-left: 3px solid var(--accent) !important;
+  background: var(--bg-hover) !important;
+}
+
+/* ── Breadcrumbs Bar ── */
+
+.breadcrumbs-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 16px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  user-select: none;
+  overflow-x: auto;
+}
+
+.breadcrumb-segment {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.breadcrumb-separator {
+  opacity: 0.4;
+  font-size: 10px;
+}
+
+.breadcrumb-item {
+  color: var(--text-secondary);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.breadcrumb-item.active {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ── Toast Notifications ── */
+
+.toast-notification {
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  padding: 10px 18px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 2000;
+  animation: toast-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+}
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateY(20px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── Focus Mode (Editor & Preview) ── */
+
+.cm-editor.focus-mode-active .cm-line:not(.cm-activeLine) {
+  opacity: 0.25 !important;
+  filter: blur(0.3px);
+  transition: opacity 0.2s, filter 0.2s;
+}
+
+.cm-editor.focus-mode-active .cm-line.cm-activeLine {
+  opacity: 1 !important;
+  filter: none;
+}

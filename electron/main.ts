@@ -371,6 +371,23 @@ ipcMain.handle(
   },
 )
 
+ipcMain.handle(
+  'export:html',
+  async (_event, htmlContent: string, suggestedName?: string) => {
+    const result = await dialog.showSaveDialog(mainWindow!, {
+      defaultPath: suggestedName?.replace(/\.(md|markdown|txt)$/i, '.html') ?? 'documento.html',
+      filters: [{ name: 'HTML Document', extensions: ['html'] }],
+    })
+
+    if (result.canceled || !result.filePath) {
+      return null
+    }
+
+    await fs.writeFile(result.filePath, htmlContent, 'utf-8')
+    return { filePath: result.filePath, saved: true }
+  },
+)
+
 ipcMain.handle('shell:openExternal', async (_event, url: string) => {
   await shell.openExternal(url)
 })

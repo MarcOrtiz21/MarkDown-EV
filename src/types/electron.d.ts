@@ -32,6 +32,7 @@ export type ElectronAPI = {
   saveFile: (content: string, currentPath?: string) => Promise<SaveFileResult>
   saveFileAs: (content: string, currentPath?: string) => Promise<SaveFileResult>
   exportPdf: (html: string, suggestedName?: string) => Promise<SaveFileResult>
+  exportHtml: (htmlContent: string, suggestedName?: string) => Promise<SaveFileResult>
   readKatexCss: () => Promise<string | null>
   openExternal: (url: string) => Promise<void>
   openDirectory: () => Promise<{ path: string; name: string } | null>

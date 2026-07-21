@@ -30,6 +30,9 @@ const electronAPI = {
   exportPdf: (html: string, suggestedName?: string): Promise<SaveFileResult> =>
     ipcRenderer.invoke('export:pdf', html, suggestedName),
 
+  exportHtml: (htmlContent: string, suggestedName?: string): Promise<SaveFileResult> =>
+    ipcRenderer.invoke('export:html', htmlContent, suggestedName),
+
   readKatexCss: (): Promise<string | null> =>
     ipcRenderer.invoke('file:readKatexCss'),
 

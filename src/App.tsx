@@ -80,8 +80,17 @@ function App() {
   const [commandPaletteMode, setCommandPaletteMode] = useState<'file' | 'command'>('file')
   const [config, setConfig] = useState<AppConfig>(() => getAppConfig())
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [focusMode, setFocusMode] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
   const zoomLevelRef = useRef(0)
   const dragCounterRef = useRef(0)
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg)
+    setTimeout(() => {
+      setToastMessage((current) => (current === msg ? null : current))
+    }, 3500)
+  }, [])
 
   // Recent files state
   const [recentFiles, setRecentFiles] = useState<string[]>(() => {
@@ -107,7 +116,6 @@ function App() {
   const filePath = activeTab ? activeTab.filePath : null
   const savedContent = activeTab ? activeTab.savedContent : ''
   const isDirty = activeTab ? content !== savedContent : false
-  const fileName = filePath ?? null
 
   useEffect(() => {
     applyTheme(theme)
@@ -302,6 +310,58 @@ function App() {
     },
     [tabs, activeTabId],
   )
+
+  // Reorder tabs via Drag & Drop
+  const handleTabReorder = useCallback((fromIndex: number, toIndex: number) => {
+    setTabs((prev) => {
+      const next = [...prev]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      return next
+    })
+  }, [])
+
+  const handleExportHtml = useCallback(async () => {
+    if (!activeTab) return
+    setStatusMessage('Generando HTML…')
+    try {
+      const html = await prepareExportHtml(content, filePath, (absolutePath) =>
+        getElectronAPI().readAsDataUrl(absolutePath),
+      )
+      const suggestedName = filePath?.split(/[/\\]/).pop() ?? 'documento.md'
+      if (hasElectronAPI()) {
+        const result = await getElectronAPI().exportHtml(html, suggestedName)
+        if (result) {
+          showToast(`HTML exportado: ${result.filePath.split(/[/\\]/).pop()}`)
+        }
+      }
+    } catch (err) {
+      console.error('Error al exportar HTML:', err)
+    } finally {
+      setStatusMessage(null)
+    }
+  }, [activeTab, content, filePath, showToast])
+
+  const handleCopyRichText = useCallback(async () => {
+    if (!activeTab) return
+    try {
+      const html = await prepareExportHtml(content, filePath, (absolutePath) =>
+        getElectronAPI().readAsDataUrl(absolutePath),
+      )
+      const blobHtml = new Blob([html], { type: 'text/html' })
+      const blobText = new Blob([content], { type: 'text/plain' })
+      const clipboardItem = new ClipboardItem({
+        'text/html': blobHtml,
+        'text/plain': blobText,
+      })
+      await navigator.clipboard.write([clipboardItem])
+      showToast('Copiado al portapapeles con formato enriquecido ✨')
+    } catch (err) {
+      console.error('Error al copiar Rich Text:', err)
+      await navigator.clipboard.writeText(content)
+      showToast('Copiado texto plano al portapapeles')
+    }
+  }, [activeTab, content, filePath, showToast])
 
   const handleExportPdf = useCallback(async () => {
     if (!activeTab || !hasElectronAPI()) return
@@ -731,7 +791,7 @@ function App() {
           setCommandPaletteMode('file')
           setIsCommandPaletteOpen(true)
         }
-      } else if (event.key === 't') {
+      } else if (event.key === 't' || (event.key === 'n' && !event.shiftKey)) {
         event.preventDefault()
         handleNewFile()
       } else if (event.key === 'w') {
@@ -796,20 +856,45 @@ function App() {
       onDrop={(event) => void handleDrop(event)}
     >
       <Toolbar
-        fileName={fileName}
-        isDirty={isDirty}
-        viewMode={viewMode}
-        theme={theme}
-        onOpen={() => void handleOpen()}
-        onSave={() => void handleSave()}
-        onSaveAs={() => void handleSaveAs()}
-        onExportPdf={() => void handleExportPdf()}
-        onThemeToggle={handleThemeToggle}
-        onViewModeChange={setViewMode}
-        onSettingsOpen={() => setIsSettingsOpen(true)}
-      />
+          fileName={filePath}
+          isDirty={isDirty}
+          viewMode={viewMode}
+          theme={theme}
+          focusMode={focusMode}
+          onOpen={handleOpen}
+          onSave={handleSave}
+          onSaveAs={handleSaveAs}
+          onExportPdf={handleExportPdf}
+          onExportHtml={handleExportHtml}
+          onCopyRichText={handleCopyRichText}
+          onThemeToggle={handleThemeToggle}
+          onFocusModeToggle={() => setFocusMode((prev) => !prev)}
+          onViewModeChange={setViewMode}
+          onSettingsOpen={() => setIsSettingsOpen(true)}
+        />
 
-      <div className="app-layout">
+        <div className="main-content">
+          <TabBar
+            tabs={tabs}
+            activeTabId={activeTabId}
+            onTabSelect={setActiveTabId}
+            onTabClose={handleTabClose}
+            onTabReorder={handleTabReorder}
+          />
+
+          {filePath && (
+            <div className="breadcrumbs-bar">
+              {filePath.split(/[/\\]/).map((segment, idx, arr) => (
+                <span key={idx} className="breadcrumb-segment">
+                  <span className={`breadcrumb-item ${idx === arr.length - 1 ? 'active' : ''}`}>
+                    {segment}
+                  </span>
+                  {idx < arr.length - 1 && <span className="breadcrumb-separator">›</span>}
+                </span>
+              ))}
+            </div>
+          )}
+
         <FileExplorer
           currentDir={currentDir}
           onCurrentDirChange={setCurrentDir}
@@ -851,6 +936,7 @@ function App() {
                     lineHeight={config.lineHeight}
                     tabSize={config.tabSize}
                     vimMode={config.vimMode}
+                    focusMode={focusMode}
                     onScroll={viewMode === 'split' ? handleEditorScroll : undefined}
                     editorRef={viewMode === 'split' ? editorHandleRef : undefined}
                     onPasteImage={handlePasteImage}
@@ -909,6 +995,11 @@ function App() {
       </footer>
 
       <DropOverlay visible={isDragging} />
+      {toastMessage && (
+        <div className="toast-notification">
+          <span>{toastMessage}</span>
+        </div>
+      )}
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         mode={commandPaletteMode}

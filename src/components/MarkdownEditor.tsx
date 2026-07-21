@@ -25,11 +25,13 @@ type MarkdownEditorProps = {
   lineHeight: number
   tabSize: number
   vimMode: boolean
+  focusMode?: boolean
+  typewriterMode?: boolean
   /** Called when the editor scrolls — reports the first visible line (0-based). */
   onScroll?: (firstVisibleLine: number) => void
   /** Imperative handle so the parent can scroll the editor to a line. */
   editorRef?: React.MutableRefObject<{ scrollToLine: (line: number) => void } | null>
-  /** Called when the user pastes an image file. */
+  /** Called when the user pastes or drops an image file. */
   onPasteImage?: (file: File, insertCallback: (relativePath: string) => void) => void
 }
 
@@ -70,6 +72,8 @@ export function MarkdownEditor({
   lineHeight,
   tabSize,
   vimMode,
+  focusMode = false,
+  typewriterMode = false,
   onScroll,
   editorRef,
   onPasteImage,
@@ -155,7 +159,7 @@ export function MarkdownEditor({
             callback(line.number - 1) // 0-based
           }
         }),
-        // Paste event listener — intercepts pasted image files
+        // Paste and Drop event handlers — intercepts image files
         EditorView.domEventHandlers({
           paste(event, view) {
             const file = event.clipboardData?.files[0]
@@ -167,6 +171,22 @@ export function MarkdownEditor({
                 view.dispatch({
                   changes: { from, to, insert: textToInsert },
                   selection: { anchor: from + textToInsert.length },
+                })
+              })
+              return true
+            }
+            return false
+          },
+          drop(event, view) {
+            const file = event.dataTransfer?.files[0]
+            if (file && file.type.startsWith('image/') && onPasteImageRef.current) {
+              event.preventDefault()
+              const pos = view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.head
+              onPasteImageRef.current(file, (relativePath) => {
+                const textToInsert = `![${file.name}](${relativePath})`
+                view.dispatch({
+                  changes: { from: pos, to: pos, insert: textToInsert },
+                  selection: { anchor: pos + textToInsert.length },
                 })
               })
               return true
@@ -249,5 +269,13 @@ export function MarkdownEditor({
     }
   }, [value])
 
-  return <div ref={containerRef} className="markdown-editor" />
+  return (
+    <div
+      ref={containerRef}
+      className={`markdown-editor ${focusMode ? 'focus-mode-active' : ''} ${
+        typewriterMode ? 'typewriter-active' : ''
+      }`}
+    />
+  )
 }
+
