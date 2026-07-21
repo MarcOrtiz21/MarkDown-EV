@@ -435,6 +435,78 @@ ipcMain.handle('file:saveClipboardImage', async (_event, activeFilePath: string,
   }
 })
 
+async function performWorkspaceSearch(dirPath: string, query: string): Promise<any[]> {
+  const results: any[] = []
+  const lowerQuery = query.toLowerCase()
+
+  const IGNORED_FOLDERS = new Set([
+    'node_modules',
+    '.git',
+    'dist',
+    'dist-electron',
+    'release',
+    'assets',
+    '.DS_Store',
+  ])
+
+  async function searchDir(currentPath: string) {
+    let entries
+    try {
+      entries = await fs.readdir(currentPath, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || IGNORED_FOLDERS.has(entry.name)) {
+        continue
+      }
+
+      const fullPath = path.join(currentPath, entry.name)
+      if (entry.isDirectory()) {
+        await searchDir(fullPath)
+      } else if (entry.isFile()) {
+        const isText = /\.md$/i.test(entry.name) || /\.txt$/i.test(entry.name)
+        if (!isText) continue
+
+        try {
+          const content = await fs.readFile(fullPath, 'utf-8')
+          const lines = content.split('\n')
+          const matches: { lineNumber: number; lineText: string }[] = []
+
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].toLowerCase().includes(lowerQuery)) {
+              matches.push({
+                lineNumber: i + 1,
+                lineText: lines[i].trim(),
+              })
+            }
+          }
+
+          if (matches.length > 0) {
+            results.push({
+              filePath: fullPath,
+              fileName: entry.name,
+              matches,
+            })
+          }
+        } catch {
+          // ignore unreadable files
+        }
+      }
+    }
+  }
+
+  await searchDir(dirPath)
+  return results
+}
+
+ipcMain.handle('dir:search', async (_event, dirPath: string, query: string) => {
+  if (!query.trim()) return []
+  return performWorkspaceSearch(dirPath, query)
+})
+
+
 app.whenReady().then(() => {
   protocol.handle('app-image', (request) => {
     const encoded = request.url.slice('app-image://'.length)

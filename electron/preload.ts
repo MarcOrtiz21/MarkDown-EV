@@ -58,6 +58,9 @@ const electronAPI = {
 
   getZoomLevel: (): number => webFrame.getZoomLevel(),
 
+  searchInDirectory: (dirPath: string, query: string): Promise<any> =>
+    ipcRenderer.invoke('dir:search', dirPath, query),
+
   onDirectoryChanged: (callback: (info: { eventType: string; filename: string | null }) => void) => {
     const handler = (_event: any, info: { eventType: string; filename: string | null }) => callback(info)
     ipcRenderer.on('dir:changed', handler)

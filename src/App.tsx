@@ -433,6 +433,28 @@ function App() {
     [openFileInTab],
   )
 
+  const handleSearchMatchClick = useCallback(
+    async (path: string, line: number) => {
+      if (!hasElectronAPI()) return
+      const result = await getElectronAPI().readFile(path)
+      if (!result) return
+
+      // Open tab
+      openFileInTab(result.filePath, result.content)
+
+      // Nav to line
+      setTimeout(() => {
+        editorHandleRef.current?.scrollToLine(line)
+
+        const lineEl = document.querySelector(`[data-line="${line}"]`)
+        if (lineEl) {
+          lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 100)
+    },
+    [openFileInTab],
+  )
+
   // ─── Drag & Drop ──────────────────────────────────────
 
   const handleDragEnter = useCallback((event: React.DragEvent) => {
@@ -620,6 +642,7 @@ function App() {
           onRemoveRecentFile={handleRemoveRecentFile}
           onClearRecentFiles={handleClearRecentFiles}
           onHeadingClick={handleHeadingClick}
+          onSearchMatchClick={handleSearchMatchClick}
         />
 
         <div className="main-content">

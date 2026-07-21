@@ -8,6 +8,17 @@ export type SaveFileResult = {
   saved: boolean
 } | null
 
+export type TextMatch = {
+  lineNumber: number
+  lineText: string
+}
+
+export type FileSearchResult = {
+  filePath: string
+  fileName: string
+  matches: TextMatch[]
+}
+
 export type ElectronAPI = {
   openFile: () => Promise<OpenFileResult>
   readFile: (filePath: string) => Promise<OpenFileResult>
@@ -26,6 +37,7 @@ export type ElectronAPI = {
   saveClipboardImage: (activeFilePath: string, base64Data: string, imageName: string) => Promise<{ relativePath: string } | { error: string }>
   setZoomLevel: (level: number) => void
   getZoomLevel: () => number
+  searchInDirectory: (dirPath: string, query: string) => Promise<FileSearchResult[]>
   onDirectoryChanged: (callback: (info: { eventType: string; filename: string | null }) => void) => () => void
   onMenuAction: (callback: (action: string) => void) => () => void
 }

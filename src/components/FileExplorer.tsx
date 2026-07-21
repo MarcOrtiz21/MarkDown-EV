@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getElectronAPI, hasElectronAPI } from '../lib/electron'
+import type { FileSearchResult } from '../types/electron'
 import {
   FolderIcon,
   FolderOpenIcon,
@@ -8,6 +9,7 @@ import {
   CloseIcon,
   ListIcon,
   FolderExplorerIcon,
+  SearchIcon,
 } from './Icons'
 
 type FileExplorerProps = {
@@ -18,6 +20,7 @@ type FileExplorerProps = {
   onRemoveRecentFile: (filePath: string) => void
   onClearRecentFiles: () => void
   onHeadingClick: (line: number, id: string) => void
+  onSearchMatchClick: (filePath: string, line: number) => void
 }
 
 type FileNode = {
@@ -48,7 +51,6 @@ function parseHeadings(markdownText: string | null): HeadingItem[] {
     }
     if (inCodeBlock) continue
     
-    // Match standard ATX headings: # Heading
     const match = line.match(/^(#{1,6})\s+(.+)$/)
     if (match) {
       const level = match[1].length
@@ -63,6 +65,29 @@ function parseHeadings(markdownText: string | null): HeadingItem[] {
   return headings
 }
 
+// Highlight query matches helper
+function HighlightMatch({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>
+  
+  const lowerText = text.toLowerCase()
+  const lowerQuery = query.toLowerCase()
+  const index = lowerText.indexOf(lowerQuery)
+  
+  if (index === -1) return <>{text}</>
+  
+  const before = text.substring(0, index)
+  const match = text.substring(index, index + query.length)
+  const after = text.substring(index + query.length)
+  
+  return (
+    <>
+      {before}
+      <mark className="search-highlight">{match}</mark>
+      {after}
+    </>
+  )
+}
+
 export function FileExplorer({
   activeFilePath,
   activeFileContent,
@@ -71,9 +96,10 @@ export function FileExplorer({
   onRemoveRecentFile,
   onClearRecentFiles,
   onHeadingClick,
+  onSearchMatchClick,
 }: FileExplorerProps) {
-  // Sidebar tabs: 'files' | 'outline'
-  const [activeTab, setActiveTab] = useState<'files' | 'outline'>('files')
+  // Sidebar tabs: 'files' | 'outline' | 'search'
+  const [activeTab, setActiveTab] = useState<'files' | 'outline' | 'search'>('files')
 
   // Directory explorer state
   const [currentDir, setCurrentDir] = useState<{ path: string; name: string } | null>(null)
@@ -82,6 +108,12 @@ export function FileExplorer({
   const [creatingInPath, setCreatingInPath] = useState<string | null>(null)
   const [newFileName, setNewFileName] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  // Global search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<FileSearchResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set())
 
   // Parse headings from the current document
   const headings = parseHeadings(activeFileContent)
@@ -117,6 +149,9 @@ export function FileExplorer({
     setExpandedPaths(new Set())
     setDirContents({})
     setCreatingInPath(null)
+    setSearchQuery('')
+    setSearchResults([])
+    setActiveTab('files')
   }
 
   // Toggle folder expansion
@@ -148,6 +183,25 @@ export function FileExplorer({
     return unsubscribe
   }, [currentDir, expandedPaths, loadDirectory])
 
+  // Debounced search effect
+  useEffect(() => {
+    if (!searchQuery.trim() || !currentDir) {
+      setSearchResults([])
+      return
+    }
+
+    setIsSearching(true)
+    const timer = setTimeout(async () => {
+      if (hasElectronAPI()) {
+        const results = await getElectronAPI().searchInDirectory(currentDir.path, searchQuery.trim())
+        setSearchResults(results)
+      }
+      setIsSearching(false)
+    }, 300) // 300ms debounce
+
+    return () => clearTimeout(timer)
+  }, [searchQuery, currentDir])
+
   // Handle new file creation
   const handleCreateFileSubmit = async (e: React.FormEvent, parentPath: string) => {
     e.preventDefault()
@@ -166,6 +220,17 @@ export function FileExplorer({
       onOpenFile(result.filePath)
       void loadDirectory(parentPath)
     }
+  }
+
+  // Toggle collapsed search file node
+  const toggleFileCollapse = (path: string) => {
+    const newCollapsed = new Set(collapsedFiles)
+    if (newCollapsed.has(path)) {
+      newCollapsed.delete(path)
+    } else {
+      newCollapsed.add(path)
+    }
+    setCollapsedFiles(newCollapsed)
   }
 
   // Render the file tree recursively
@@ -264,7 +329,7 @@ export function FileExplorer({
 
   return (
     <aside className="sidebar-explorer">
-      {/* Sidebar Tabs Explorer vs Outline */}
+      {/* Sidebar Tabs Explorer vs Outline vs Search */}
       <div className="sidebar-tabs">
         <button
           type="button"
@@ -285,12 +350,22 @@ export function FileExplorer({
           <ListIcon size={14} />
           <span>Esquema</span>
         </button>
+        <button
+          type="button"
+          className={`sidebar-tab-btn ${activeTab === 'search' ? 'active' : ''}`}
+          onClick={() => setActiveTab('search')}
+          title="Buscar en la carpeta"
+          disabled={!currentDir}
+        >
+          <SearchIcon size={14} />
+          <span>Buscar</span>
+        </button>
       </div>
 
       <div className="sidebar-scrollable">
         {errorMsg && <div className="sidebar-error-banner">{errorMsg}</div>}
 
-        {activeTab === 'files' ? (
+        {activeTab === 'files' && (
           /* File Explorer Mode */
           <>
             {currentDir ? (
@@ -401,7 +476,9 @@ export function FileExplorer({
               </div>
             )}
           </>
-        ) : (
+        )}
+
+        {activeTab === 'outline' && (
           /* Outline / TOC Mode */
           <div className="sidebar-outline">
             {headings.length > 0 ? (
@@ -427,6 +504,77 @@ export function FileExplorer({
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'search' && currentDir && (
+          /* Global Search Mode */
+          <div className="sidebar-search">
+            <div className="sidebar-search-container">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar en archivos..."
+                className="sidebar-search-input"
+                autoFocus
+              />
+              {isSearching && <span className="sidebar-search-spinner" />}
+            </div>
+
+            <div className="search-results-list">
+              {searchQuery.trim() !== '' ? (
+                searchResults.length > 0 ? (
+                  searchResults.map((result) => {
+                    const isCollapsed = collapsedFiles.has(result.filePath)
+                    return (
+                      <div key={result.filePath} className="search-file-group">
+                        <div
+                          className="search-file-header"
+                          onClick={() => toggleFileCollapse(result.filePath)}
+                        >
+                          <span className="search-file-arrow">{isCollapsed ? '▶' : '▼'}</span>
+                          <FileIcon className="search-file-icon" size={13} />
+                          <span className="search-file-name" title={result.filePath}>
+                            {result.fileName}
+                          </span>
+                          <span className="search-match-count">{result.matches.length}</span>
+                        </div>
+
+                        {!isCollapsed && (
+                          <div className="search-file-matches">
+                            {result.matches.map((match, idx) => (
+                              <div
+                                key={`${match.lineNumber}-${idx}`}
+                                className="search-match-item"
+                                onClick={() => onSearchMatchClick(result.filePath, match.lineNumber - 1)}
+                              >
+                                <span className="search-match-line-num">{match.lineNumber}</span>
+                                <span className="search-match-text">
+                                  <HighlightMatch text={match.lineText} query={searchQuery} />
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                ) : (
+                  !isSearching && (
+                    <div className="sidebar-empty-state">
+                      <p className="sidebar-tip">No se encontraron coincidencias.</p>
+                    </div>
+                  )
+                )
+              ) : (
+                <div className="sidebar-empty-state">
+                  <p className="sidebar-tip">
+                    Escribe una palabra o frase para buscar coincidencias en todos los documentos de la carpeta abierta.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
