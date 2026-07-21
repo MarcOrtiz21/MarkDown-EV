@@ -30,6 +30,7 @@ const COMMAND_OPTIONS: CommandOption[] = [
   { id: 'view-split', name: 'Establecer vista: Dividida', shortcut: '⌘2', action: 'view-split' },
   { id: 'view-preview', name: 'Establecer vista: Solo Vista Previa', shortcut: '⌘3', action: 'view-preview' },
   { id: 'close-tab', name: 'Cerrar pestaña activa', shortcut: '⌘W', action: 'close-tab' },
+  { id: 'open-settings', name: 'Abrir configuración de preferencias', action: 'open-settings' },
 ]
 
 export function CommandPalette({

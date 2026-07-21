@@ -1,5 +1,5 @@
 import type { Theme } from '../lib/theme'
-import { SunIcon, MoonIcon, FileIcon } from './Icons'
+import { SunIcon, MoonIcon, FileIcon, SettingsIcon } from './Icons'
 
 export type ViewMode = 'edit' | 'split' | 'preview'
 
@@ -31,6 +31,7 @@ type ToolbarProps = {
   onExportPdf: () => void
   onThemeToggle: () => void
   onViewModeChange: (mode: ViewMode) => void
+  onSettingsOpen: () => void
 }
 
 const viewModes: { mode: ViewMode; label: string; shortcut: string }[] = [
@@ -50,6 +51,7 @@ export function Toolbar({
   onExportPdf,
   onThemeToggle,
   onViewModeChange,
+  onSettingsOpen,
 }: ToolbarProps) {
   const title = fileName
     ? fileName.split(/[/\\]/).pop() + (isDirty ? ' •' : '')
@@ -86,6 +88,14 @@ export function Toolbar({
           title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
         >
           {theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />}
+        </button>
+        <button
+          type="button"
+          className="action-btn action-btn--icon"
+          onClick={onSettingsOpen}
+          title="Preferencias"
+        >
+          <SettingsIcon size={14} />
         </button>
         <button type="button" className="action-btn" onClick={onOpen} title="Abrir (⌘O)">
           Abrir

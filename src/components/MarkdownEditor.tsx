@@ -3,6 +3,8 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { Compartment, EditorState } from '@codemirror/state'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { indentUnit } from '@codemirror/language'
+import { vim } from '@replit/codemirror-vim'
 import {
   EditorView,
   drawSelection,
@@ -18,6 +20,11 @@ type MarkdownEditorProps = {
   value: string
   onChange: (value: string) => void
   theme: Theme
+  fontSize: number
+  fontFamily: string
+  lineHeight: number
+  tabSize: number
+  vimMode: boolean
   /** Called when the editor scrolls — reports the first visible line (0-based). */
   onScroll?: (firstVisibleLine: number) => void
   /** Imperative handle so the parent can scroll the editor to a line. */
@@ -27,6 +34,9 @@ type MarkdownEditorProps = {
 }
 
 const themeCompartment = new Compartment()
+const styleCompartment = new Compartment()
+const tabSizeCompartment = new Compartment()
+const vimCompartment = new Compartment()
 
 const lightEditorTheme = EditorView.theme({
   '&': {
@@ -55,6 +65,11 @@ export function MarkdownEditor({
   value,
   onChange,
   theme,
+  fontSize,
+  fontFamily,
+  lineHeight,
+  tabSize,
+  vimMode,
   onScroll,
   editorRef,
   onPasteImage,
@@ -127,7 +142,6 @@ export function MarkdownEditor({
         }),
         EditorView.theme({
           '&': { height: '100%' },
-          '.cm-scroller': { fontFamily: 'var(--font-mono)', fontSize: '14px' },
         }),
         // Scroll listener — fires on viewport changes
         EditorView.updateListener.of((update) => {
@@ -160,6 +174,21 @@ export function MarkdownEditor({
             return false
           },
         }),
+        // Compartments for dynamic preferences config
+        styleCompartment.of(
+          EditorView.theme({
+            '.cm-content, .cm-gutter, .cm-scroller': {
+              fontSize: `${fontSize}px !important`,
+              fontFamily: `${fontFamily} !important`,
+              lineHeight: `${lineHeight} !important`,
+            },
+          })
+        ),
+        tabSizeCompartment.of([
+          EditorState.tabSize.of(tabSize),
+          indentUnit.of(' '.repeat(tabSize)),
+        ]),
+        vimCompartment.of(vimMode ? vim() : []),
       ],
     })
 
@@ -182,6 +211,31 @@ export function MarkdownEditor({
       ),
     })
   }, [theme])
+
+  // Reactively reconfigure dynamic editor configurations on props changes
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+
+    view.dispatch({
+      effects: [
+        styleCompartment.reconfigure(
+          EditorView.theme({
+            '.cm-content, .cm-gutter, .cm-scroller': {
+              fontSize: `${fontSize}px !important`,
+              fontFamily: `${fontFamily} !important`,
+              lineHeight: `${lineHeight} !important`,
+            },
+          })
+        ),
+        tabSizeCompartment.reconfigure([
+          EditorState.tabSize.of(tabSize),
+          indentUnit.of(' '.repeat(tabSize)),
+        ]),
+        vimCompartment.reconfigure(vimMode ? vim() : []),
+      ],
+    })
+  }, [fontSize, fontFamily, lineHeight, tabSize, vimMode])
 
   useEffect(() => {
     const view = viewRef.current

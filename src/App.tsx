@@ -10,6 +10,8 @@ import { getElectronAPI, hasElectronAPI } from './lib/electron'
 import { isMarkdownFile } from './lib/images'
 import { prepareExportHtml } from './lib/pdf'
 import { applyTheme, getStoredTheme, setStoredTheme, type Theme } from './lib/theme'
+import { getAppConfig, saveAppConfig, type AppConfig } from './lib/config'
+import { SettingsModal } from './components/SettingsModal'
 import './App.css'
 
 const WELCOME = `# Bienvenido a MarkDown EV
@@ -76,6 +78,8 @@ function App() {
   const [currentDir, setCurrentDir] = useState<{ path: string; name: string } | null>(null)
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
   const [commandPaletteMode, setCommandPaletteMode] = useState<'file' | 'command'>('file')
+  const [config, setConfig] = useState<AppConfig>(() => getAppConfig())
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const zoomLevelRef = useRef(0)
   const dragCounterRef = useRef(0)
 
@@ -314,14 +318,14 @@ function App() {
   // ─── Auto-save ────────────────────────────────────────
 
   useEffect(() => {
-    if (!filePath || content === savedContent) return
+    if (!config.autoSave || !filePath || content === savedContent) return
 
     const timer = setTimeout(() => {
       void handleSave()
-    }, 2000) // auto-save 2 seconds after typing stops
+    }, config.autoSaveDelay * 1000)
 
     return () => clearTimeout(timer)
-  }, [content, filePath, savedContent, handleSave])
+  }, [content, filePath, savedContent, handleSave, config.autoSave, config.autoSaveDelay])
 
   // ─── Scroll sync ───────────────────────────────────────
 
@@ -529,6 +533,9 @@ function App() {
             handleTabClose(activeTabId)
           }
           break
+        case 'open-settings':
+          setIsSettingsOpen(true)
+          break
         default:
           break
       }
@@ -543,6 +550,11 @@ function App() {
       handleTabClose,
     ],
   )
+
+  const handleSaveConfig = useCallback((newConfig: AppConfig) => {
+    setConfig(newConfig)
+    saveAppConfig(newConfig)
+  }, [])
 
   // ─── Drag & Drop ──────────────────────────────────────
 
@@ -728,6 +740,7 @@ function App() {
         onExportPdf={() => void handleExportPdf()}
         onThemeToggle={handleThemeToggle}
         onViewModeChange={setViewMode}
+        onSettingsOpen={() => setIsSettingsOpen(true)}
       />
 
       <div className="app-layout">
@@ -767,6 +780,11 @@ function App() {
                     value={content}
                     onChange={setContent}
                     theme={theme}
+                    fontSize={config.fontSize}
+                    fontFamily={config.fontFamily}
+                    lineHeight={config.lineHeight}
+                    tabSize={config.tabSize}
+                    vimMode={config.vimMode}
                     onScroll={viewMode === 'split' ? handleEditorScroll : undefined}
                     editorRef={viewMode === 'split' ? editorHandleRef : undefined}
                     onPasteImage={handlePasteImage}
@@ -832,6 +850,12 @@ function App() {
         onClose={() => setIsCommandPaletteOpen(false)}
         onOpenFile={handleOpenFileFromExplorer}
         onExecuteCommand={handleExecuteCommand}
+      />
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        config={config}
+        onClose={() => setIsSettingsOpen(false)}
+        onSaveConfig={handleSaveConfig}
       />
     </div>
   )
