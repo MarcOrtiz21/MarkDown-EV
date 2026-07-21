@@ -1,0 +1,143 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: MarkDown EV
+      - generic [ref=e7]: Sin título
+    - generic [ref=e8]:
+      - button "Editor" [ref=e9] [cursor=pointer]
+      - button "Dividido" [ref=e10] [cursor=pointer]
+      - button "Vista previa" [ref=e11] [cursor=pointer]
+    - generic [ref=e12]:
+      - button "☀️" [ref=e13] [cursor=pointer]
+      - button "Abrir" [ref=e14] [cursor=pointer]
+      - button "Guardar" [ref=e15] [cursor=pointer]
+      - button "Guardar como" [ref=e16] [cursor=pointer]
+      - button "PDF" [ref=e17] [cursor=pointer]
+  - main [ref=e18]:
+    - generic [ref=e22]:
+      - generic [ref=e24]:
+        - generic [ref=e25]: "1"
+        - generic [ref=e26]: "2"
+        - generic [ref=e27]: "3"
+        - generic [ref=e28]: "4"
+        - generic [ref=e29]: "5"
+        - generic [ref=e30]: "6"
+        - generic [ref=e31]: "7"
+        - generic [ref=e32]: "8"
+        - generic [ref=e33]: "9"
+        - generic [ref=e34]: "10"
+        - generic [ref=e35]: "11"
+        - generic [ref=e36]: "12"
+        - generic [ref=e37]: "13"
+        - generic [ref=e38]: "14"
+        - generic [ref=e39]: "15"
+        - generic [ref=e40]: "16"
+        - generic [ref=e41]: "17"
+        - generic [ref=e42]: "18"
+        - generic [ref=e43]: "19"
+        - generic [ref=e44]: "20"
+        - generic [ref=e45]: "21"
+        - generic [ref=e46]: "22"
+        - generic [ref=e47]: "23"
+        - generic [ref=e48]: "24"
+        - generic [ref=e49]: "25"
+        - generic [ref=e50]: "26"
+        - generic [ref=e51]: "27"
+        - generic [ref=e52]: "28"
+        - generic [ref=e53]: "29"
+      - textbox [ref=e54]:
+        - generic [ref=e55]: "# Bienvenido a MarkDown EV"
+        - generic [ref=e57]: Un visor-editor de Markdown minimalista para macOS.
+        - generic [ref=e59]: "## Características"
+        - generic [ref=e61]: "- **Abrir cualquier archivo** — sin vault, arrastra un `.md` a la ventana"
+        - generic [ref=e62]: "- **Vista dividida** — editor y preview en tiempo real"
+        - generic [ref=e63]: "- **LaTeX** — inline $E = mc^2$ y en bloque:"
+        - generic [ref=e65]: $$
+        - generic [ref=e66]: "\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}"
+        - generic [ref=e67]: $$
+        - generic [ref=e69]: "- **Imágenes locales** — `![alt](./imagen.png)` relativo al archivo abierto"
+        - generic [ref=e70]: "- **Exportar PDF** — botón PDF o ⌘P"
+        - generic [ref=e71]: "- **Temas** — oscuro / claro con el botón ☀️/🌙"
+        - generic [ref=e73]: "## Atajos"
+        - generic [ref=e75]: "| Acción | Atajo |"
+        - generic [ref=e76]: "|--------|-------|"
+        - generic [ref=e77]: "| Abrir | ⌘O |"
+        - generic [ref=e78]: "| Guardar | ⌘S |"
+        - generic [ref=e79]: "| Exportar PDF | ⌘P |"
+        - generic [ref=e80]: "| Solo editor | ⌘1 |"
+        - generic [ref=e81]: "| Dividido | ⌘2 |"
+        - generic [ref=e82]: "| Solo preview | ⌘3 |"
+    - generic [ref=e85]:
+      - heading "Bienvenido a MarkDown EV" [level=1] [ref=e86]
+      - paragraph [ref=e87]: Un visor-editor de Markdown minimalista para macOS.
+      - heading "Características" [level=2] [ref=e88]
+      - list [ref=e89]:
+        - listitem [ref=e90]:
+          - strong [ref=e91]: Abrir cualquier archivo
+          - text: — sin vault, arrastra un
+          - code [ref=e92]: .md
+          - text: a la ventana
+        - listitem [ref=e93]:
+          - strong [ref=e94]: Vista dividida
+          - text: — editor y preview en tiempo real
+        - listitem [ref=e95]:
+          - strong [ref=e96]: LaTeX
+          - text: — inline
+          - generic [ref=e98]:
+            - math [ref=e100]:
+              - generic [ref=e102]:
+                - generic [ref=e103]: E
+                - generic [ref=e104]: =
+                - generic [ref=e105]: m
+                - generic [ref=e106]:
+                  - generic [ref=e107]: c
+                  - generic [ref=e108]: "2"
+            - generic [ref=e109]:
+              - generic [ref=e110]: E =
+              - generic [ref=e111]:
+                - text: m
+                - generic [ref=e112]:
+                  - text: c
+                  - generic [ref=e113]: "2"
+          - text: "y en bloque:"
+      - paragraph [ref=e118]: "$$ \\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi} $$"
+      - list [ref=e119]:
+        - listitem [ref=e120]:
+          - strong [ref=e121]: Imágenes locales
+          - text: —
+          - code [ref=e122]: "![alt](./imagen.png)"
+          - text: relativo al archivo abierto
+        - listitem [ref=e123]:
+          - strong [ref=e124]: Exportar PDF
+          - text: — botón PDF o ⌘P
+        - listitem [ref=e125]:
+          - strong [ref=e126]: Temas
+          - text: — oscuro / claro con el botón ☀️/🌙
+      - heading "Atajos" [level=2] [ref=e127]
+      - table [ref=e128]:
+        - rowgroup [ref=e129]:
+          - row [ref=e130]:
+            - columnheader "Acción" [ref=e131]
+            - columnheader "Atajo" [ref=e132]
+        - rowgroup [ref=e133]:
+          - row [ref=e134]:
+            - cell "Abrir" [ref=e135]
+            - cell "⌘O" [ref=e136]
+          - row [ref=e137]:
+            - cell "Guardar" [ref=e138]
+            - cell "⌘S" [ref=e139]
+          - row [ref=e140]:
+            - cell "Exportar PDF" [ref=e141]
+            - cell "⌘P" [ref=e142]
+          - row [ref=e143]:
+            - cell "Solo editor" [ref=e144]
+            - cell "⌘1" [ref=e145]
+          - row [ref=e146]:
+            - cell "Dividido" [ref=e147]
+            - cell "⌘2" [ref=e148]
+          - row [ref=e149]:
+            - cell "Solo preview" [ref=e150]
+            - cell "⌘3" [ref=e151]
+  - contentinfo [ref=e152]:
+    - generic [ref=e153]: Documento sin guardar
+    - generic [ref=e154]: Guardado
