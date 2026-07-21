@@ -38,6 +38,11 @@ export type ElectronAPI = {
   setZoomLevel: (level: number) => void
   getZoomLevel: () => number
   searchInDirectory: (dirPath: string, query: string) => Promise<FileSearchResult[]>
+  resolveWikiLink: (
+    workspaceDirPath: string | null,
+    activeFilePath: string | null,
+    noteName: string
+  ) => Promise<{ filePath: string; created: boolean } | { error: string }>
   onDirectoryChanged: (callback: (info: { eventType: string; filename: string | null }) => void) => () => void
   onMenuAction: (callback: (action: string) => void) => () => void
 }

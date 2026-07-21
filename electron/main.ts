@@ -506,6 +506,78 @@ ipcMain.handle('dir:search', async (_event, dirPath: string, query: string) => {
   return performWorkspaceSearch(dirPath, query)
 })
 
+async function findFileRecursively(dir: string, mdName: string, txtName: string): Promise<string | null> {
+  const IGNORED_FOLDERS = new Set(['node_modules', '.git', 'dist', 'dist-electron', 'release', 'assets'])
+
+  async function search(currentPath: string): Promise<string | null> {
+    let entries
+    try {
+      entries = await fs.readdir(currentPath, { withFileTypes: true })
+    } catch {
+      return null
+    }
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || IGNORED_FOLDERS.has(entry.name)) {
+        continue
+      }
+      const fullPath = path.join(currentPath, entry.name)
+      if (entry.isDirectory()) {
+        const found = await search(fullPath)
+        if (found) return found
+      } else if (entry.isFile()) {
+        const lowerName = entry.name.toLowerCase()
+        if (lowerName === mdName.toLowerCase() || lowerName === txtName.toLowerCase()) {
+          return fullPath
+        }
+      }
+    }
+    return null
+  }
+
+  return search(dir)
+}
+
+ipcMain.handle('file:resolveWikiLink', async (_event, { workspaceDirPath, activeFilePath, noteName }) => {
+  const cleanNoteName = noteName.trim()
+  if (!cleanNoteName) {
+    return { error: 'Nombre de nota inválido' }
+  }
+
+  const mdName = `${cleanNoteName}.md`
+  const txtName = `${cleanNoteName}.txt`
+
+  // 1. Search recursively in workspace if opened
+  if (workspaceDirPath) {
+    const foundPath = await findFileRecursively(workspaceDirPath, mdName, txtName)
+    if (foundPath) {
+      return { filePath: foundPath, created: false }
+    }
+  }
+
+  // 2. Fall back to current directory of the active file or workspace root
+  let targetDir = workspaceDirPath
+  if (activeFilePath) {
+    targetDir = path.dirname(activeFilePath)
+  }
+
+  if (!targetDir) {
+    return { error: 'No hay ninguna carpeta de espacio de trabajo o archivo activo para crear la nota' }
+  }
+
+  const targetPath = path.join(targetDir, mdName)
+  try {
+    // Check if it already exists locally just in case
+    await fs.access(targetPath)
+    return { filePath: targetPath, created: false }
+  } catch {
+    // Create empty note with title heading template
+    const template = `# ${cleanNoteName}\n\n`
+    await fs.writeFile(targetPath, template, 'utf-8')
+    return { filePath: targetPath, created: true }
+  }
+})
+
 
 app.whenReady().then(() => {
   protocol.handle('app-image', (request) => {

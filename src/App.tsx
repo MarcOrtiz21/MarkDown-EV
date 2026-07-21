@@ -72,6 +72,7 @@ function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [splitRatio, setSplitRatio] = useState(50)
+  const [currentDir, setCurrentDir] = useState<{ path: string; name: string } | null>(null)
   const zoomLevelRef = useRef(0)
   const dragCounterRef = useRef(0)
 
@@ -455,6 +456,34 @@ function App() {
     [openFileInTab],
   )
 
+  const handleWikiLinkClick = useCallback(
+    async (noteName: string) => {
+      if (!hasElectronAPI()) return
+      const result = await getElectronAPI().resolveWikiLink(
+        currentDir ? currentDir.path : null,
+        filePath,
+        noteName,
+      )
+
+      if ('error' in result) {
+        setStatusMessage(result.error)
+        setTimeout(() => setStatusMessage(null), 3000)
+        return
+      }
+
+      const fileData = await getElectronAPI().readFile(result.filePath)
+      if (!fileData) return
+
+      openFileInTab(fileData.filePath, fileData.content)
+
+      if (result.created) {
+        setStatusMessage(`Creada nota: ${noteName}`)
+        setTimeout(() => setStatusMessage(null), 3000)
+      }
+    },
+    [currentDir, filePath, openFileInTab],
+  )
+
   // ─── Drag & Drop ──────────────────────────────────────
 
   const handleDragEnter = useCallback((event: React.DragEvent) => {
@@ -635,6 +664,8 @@ function App() {
 
       <div className="app-layout">
         <FileExplorer
+          currentDir={currentDir}
+          onCurrentDirChange={setCurrentDir}
           activeFilePath={filePath}
           activeFileContent={activeTab ? content : null}
           onOpenFile={handleOpenFileFromExplorer}
@@ -690,6 +721,7 @@ function App() {
                     theme={theme}
                     onScroll={viewMode === 'split' ? handlePreviewScroll : undefined}
                     previewRef={viewMode === 'split' ? previewHandleRef : undefined}
+                    onWikiLinkClick={handleWikiLinkClick}
                   />
                 </section>
               )}

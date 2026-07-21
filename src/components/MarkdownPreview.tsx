@@ -16,6 +16,7 @@ type MarkdownPreviewProps = {
   theme?: Theme
   onScroll?: (sourceLine: number) => void
   previewRef?: React.MutableRefObject<{ scrollToLine: (line: number) => void } | null>
+  onWikiLinkClick?: (noteName: string) => void
 }
 
 export function MarkdownPreview({
@@ -24,6 +25,7 @@ export function MarkdownPreview({
   theme = 'dark',
   onScroll,
   previewRef,
+  onWikiLinkClick,
 }: MarkdownPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const html = useMemo(() => renderMarkdown(content, filePath), [content, filePath])
@@ -100,14 +102,22 @@ export function MarkdownPreview({
         return
       }
 
-      // 2. Handle external links click
+      // 2. Handle links click (external + wikilinks)
       const anchor = target.closest('a')
       if (anchor) {
         const href = anchor.getAttribute('href')
-        if (href && /^https?:\/\//i.test(href)) {
-          event.preventDefault()
-          if (hasElectronAPI()) {
-            void getElectronAPI().openExternal(href)
+        if (href) {
+          if (/^https?:\/\//i.test(href)) {
+            event.preventDefault()
+            if (hasElectronAPI()) {
+              void getElectronAPI().openExternal(href)
+            }
+          } else if (href.startsWith('wikilink:')) {
+            event.preventDefault()
+            const dataTarget = anchor.getAttribute('data-target') || ''
+            if (onWikiLinkClick) {
+              onWikiLinkClick(dataTarget)
+            }
           }
         }
       }
@@ -115,7 +125,7 @@ export function MarkdownPreview({
 
     container.addEventListener('click', onClick)
     return () => container.removeEventListener('click', onClick)
-  }, [])
+  }, [onWikiLinkClick])
 
   // Expose imperative scrollToLine
   useEffect(() => {

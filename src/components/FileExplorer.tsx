@@ -13,6 +13,8 @@ import {
 } from './Icons'
 
 type FileExplorerProps = {
+  currentDir: { path: string; name: string } | null
+  onCurrentDirChange: (dir: { path: string; name: string } | null) => void
   activeFilePath: string | null
   activeFileContent: string | null
   onOpenFile: (filePath: string) => void
@@ -89,6 +91,8 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
 }
 
 export function FileExplorer({
+  currentDir,
+  onCurrentDirChange,
   activeFilePath,
   activeFileContent,
   onOpenFile,
@@ -102,7 +106,7 @@ export function FileExplorer({
   const [activeTab, setActiveTab] = useState<'files' | 'outline' | 'search'>('files')
 
   // Directory explorer state
-  const [currentDir, setCurrentDir] = useState<{ path: string; name: string } | null>(null)
+  // (currentDir is now passed as prop)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [dirContents, setDirContents] = useState<Record<string, FileNode[]>>({})
   const [creatingInPath, setCreatingInPath] = useState<string | null>(null)
@@ -133,7 +137,7 @@ export function FileExplorer({
     if (!hasElectronAPI()) return
     const dir = await getElectronAPI().openDirectory()
     if (dir) {
-      setCurrentDir(dir)
+      onCurrentDirChange(dir)
       setExpandedPaths(new Set([dir.path]))
       await loadDirectory(dir.path)
       await getElectronAPI().watchDirectory(dir.path)
@@ -145,7 +149,7 @@ export function FileExplorer({
     if (hasElectronAPI()) {
       await getElectronAPI().unwatchDirectory()
     }
-    setCurrentDir(null)
+    onCurrentDirChange(null)
     setExpandedPaths(new Set())
     setDirContents({})
     setCreatingInPath(null)

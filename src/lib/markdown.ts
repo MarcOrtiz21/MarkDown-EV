@@ -97,6 +97,59 @@ katexPlugin(md, {
 md.use(footnotePlugin)
 md.use(taskListsPlugin, { label: true, labelAfter: true })
 
+// Obsidian-Style WikiLinks inline rule: [[Note Name]] or [[Note Name|Custom Text]]
+md.inline.ruler.after('link', 'wikilink', (state, silent) => {
+  const max = state.posMax
+  const start = state.pos
+
+  if (start + 4 > max) return false
+  if (state.src.charCodeAt(start) !== 0x5B /* [ */ || state.src.charCodeAt(start + 1) !== 0x5B /* [ */) {
+    return false
+  }
+
+  // Find the closing ']]'
+  let matchStart = start + 2
+  let matchEnd = -1
+  for (let i = matchStart; i < max - 1; i++) {
+    if (state.src.charCodeAt(i) === 0x5D /* ] */ && state.src.charCodeAt(i + 1) === 0x5D /* ] */) {
+      matchEnd = i
+      break
+    }
+  }
+
+  if (matchEnd === -1) return false
+
+  const content = state.src.substring(matchStart, matchEnd).trim()
+  if (!content) return false
+
+  if (!silent) {
+    let target = content
+    let text = content
+
+    const pipeIdx = content.indexOf('|')
+    if (pipeIdx !== -1) {
+      target = content.substring(0, pipeIdx).trim()
+      text = content.substring(pipeIdx + 1).trim()
+    }
+
+    const token_open = state.push('wikilink_open', 'a', 1)
+    token_open.attrs = [
+      ['href', `wikilink:${encodeURIComponent(target)}`],
+      ['class', 'wikilink-anchor'],
+      ['data-target', target]
+    ]
+
+    const token_text = state.push('text', '', 0)
+    token_text.content = text
+
+    state.push('wikilink_close', 'a', -1)
+  }
+
+  state.pos = matchEnd + 2
+  return true
+})
+
+
 // Heading IDs slug generation for TOC Outline navigation
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 md.renderer.rules.heading_open = (tokens: Token[], idx: number, options: any, _env: any, self: any) => {

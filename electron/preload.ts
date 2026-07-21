@@ -61,6 +61,13 @@ const electronAPI = {
   searchInDirectory: (dirPath: string, query: string): Promise<any> =>
     ipcRenderer.invoke('dir:search', dirPath, query),
 
+  resolveWikiLink: (
+    workspaceDirPath: string | null,
+    activeFilePath: string | null,
+    noteName: string
+  ): Promise<any> =>
+    ipcRenderer.invoke('file:resolveWikiLink', { workspaceDirPath, activeFilePath, noteName }),
+
   onDirectoryChanged: (callback: (info: { eventType: string; filename: string | null }) => void) => {
     const handler = (_event: any, info: { eventType: string; filename: string | null }) => callback(info)
     ipcRenderer.on('dir:changed', handler)
