@@ -19,6 +19,11 @@ export type FileSearchResult = {
   matches: TextMatch[]
 }
 
+export type WorkspaceFile = {
+  name: string
+  path: string
+}
+
 export type ElectronAPI = {
   openFile: () => Promise<OpenFileResult>
   readFile: (filePath: string) => Promise<OpenFileResult>
@@ -38,6 +43,7 @@ export type ElectronAPI = {
   setZoomLevel: (level: number) => void
   getZoomLevel: () => number
   searchInDirectory: (dirPath: string, query: string) => Promise<FileSearchResult[]>
+  getAllFiles: (dirPath: string) => Promise<WorkspaceFile[]>
   resolveWikiLink: (
     workspaceDirPath: string | null,
     activeFilePath: string | null,

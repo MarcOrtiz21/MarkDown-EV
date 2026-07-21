@@ -5,6 +5,7 @@ import { FileExplorer } from './components/FileExplorer'
 import { TabBar, type Tab } from './components/TabBar'
 import { DropOverlay, Toolbar, type ViewMode } from './components/Toolbar'
 import { EmptyIcon } from './components/Icons'
+import { CommandPalette } from './components/CommandPalette'
 import { getElectronAPI, hasElectronAPI } from './lib/electron'
 import { isMarkdownFile } from './lib/images'
 import { prepareExportHtml } from './lib/pdf'
@@ -73,6 +74,8 @@ function App() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [splitRatio, setSplitRatio] = useState(50)
   const [currentDir, setCurrentDir] = useState<{ path: string; name: string } | null>(null)
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
+  const [commandPaletteMode, setCommandPaletteMode] = useState<'file' | 'command'>('file')
   const zoomLevelRef = useRef(0)
   const dragCounterRef = useRef(0)
 
@@ -484,6 +487,63 @@ function App() {
     [currentDir, filePath, openFileInTab],
   )
 
+  const handleExecuteCommand = useCallback(
+    (action: string) => {
+      switch (action) {
+        case 'new-file':
+          handleNewFile()
+          break
+        case 'open-folder':
+          void (async () => {
+            if (hasElectronAPI()) {
+              const dir = await getElectronAPI().openDirectory()
+              if (dir) {
+                setCurrentDir(dir)
+              }
+            }
+          })()
+          break
+        case 'save-file':
+          void handleSave()
+          break
+        case 'save-as':
+          void handleSaveAs()
+          break
+        case 'export-pdf':
+          void handleExportPdf()
+          break
+        case 'theme-toggle':
+          handleThemeToggle()
+          break
+        case 'view-edit':
+          setViewMode('edit')
+          break
+        case 'view-split':
+          setViewMode('split')
+          break
+        case 'view-preview':
+          setViewMode('preview')
+          break
+        case 'close-tab':
+          if (activeTabId) {
+            handleTabClose(activeTabId)
+          }
+          break
+        default:
+          break
+      }
+    },
+    [
+      handleNewFile,
+      handleSave,
+      handleSaveAs,
+      handleExportPdf,
+      handleThemeToggle,
+      activeTabId,
+      handleTabClose,
+    ],
+  )
+
   // ─── Drag & Drop ──────────────────────────────────────
 
   const handleDragEnter = useCallback((event: React.DragEvent) => {
@@ -584,7 +644,15 @@ function App() {
         void handleOpen()
       } else if (event.key === 'p') {
         event.preventDefault()
-        void handleExportPdf()
+        if (event.altKey) {
+          void handleExportPdf()
+        } else if (event.shiftKey) {
+          setCommandPaletteMode('command')
+          setIsCommandPaletteOpen(true)
+        } else {
+          setCommandPaletteMode('file')
+          setIsCommandPaletteOpen(true)
+        }
       } else if (event.key === 't') {
         event.preventDefault()
         handleNewFile()
@@ -757,6 +825,14 @@ function App() {
       </footer>
 
       <DropOverlay visible={isDragging} />
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        mode={commandPaletteMode}
+        workspacePath={currentDir ? currentDir.path : null}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onOpenFile={handleOpenFileFromExplorer}
+        onExecuteCommand={handleExecuteCommand}
+      />
     </div>
   )
 }

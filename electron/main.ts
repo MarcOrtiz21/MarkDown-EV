@@ -578,6 +578,46 @@ ipcMain.handle('file:resolveWikiLink', async (_event, { workspaceDirPath, active
   }
 })
 
+async function scanDirectoryRecursively(dirPath: string): Promise<any[]> {
+  const results: any[] = []
+  const IGNORED_FOLDERS = new Set(['node_modules', '.git', 'dist', 'dist-electron', 'release', 'assets', '.DS_Store'])
+
+  async function scan(currentPath: string) {
+    let entries
+    try {
+      entries = await fs.readdir(currentPath, { withFileTypes: true })
+    } catch {
+      return
+    }
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || IGNORED_FOLDERS.has(entry.name)) {
+        continue
+      }
+      const fullPath = path.join(currentPath, entry.name)
+      if (entry.isDirectory()) {
+        await scan(fullPath)
+      } else if (entry.isFile()) {
+        const isTarget = /\.md$/i.test(entry.name) || /\.txt$/i.test(entry.name)
+        if (isTarget) {
+          results.push({
+            name: entry.name,
+            path: fullPath,
+          })
+        }
+      }
+    }
+  }
+
+  await scan(dirPath)
+  return results
+}
+
+ipcMain.handle('dir:allFiles', async (_event, dirPath: string) => {
+  return scanDirectoryRecursively(dirPath)
+})
+
+
 
 app.whenReady().then(() => {
   protocol.handle('app-image', (request) => {
