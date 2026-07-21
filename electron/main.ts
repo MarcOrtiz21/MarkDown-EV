@@ -6,6 +6,16 @@ import { pathToFileURL } from 'node:url'
 
 
 let mainWindow: BrowserWindow | null = null
+let fileToOpen: string | null = null
+
+app.on('open-file', (event, filePath) => {
+  event.preventDefault()
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('file:open-from-main', filePath)
+  } else {
+    fileToOpen = filePath
+  }
+})
 
 const isDev = !app.isPackaged
 
@@ -614,6 +624,15 @@ async function scanDirectoryRecursively(dirPath: string): Promise<any[]> {
 
 ipcMain.handle('dir:allFiles', async (_event, dirPath: string) => {
   return scanDirectoryRecursively(dirPath)
+})
+
+ipcMain.handle('app:ready-to-open', () => {
+  if (fileToOpen) {
+    const temp = fileToOpen
+    fileToOpen = null
+    return temp
+  }
+  return null
 })
 
 

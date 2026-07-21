@@ -202,6 +202,21 @@ function App() {
     [tabs, addToRecentFiles],
   )
 
+  const openFilePath = useCallback(
+    async (path: string) => {
+      if (!hasElectronAPI()) return
+      try {
+        const result = await getElectronAPI().readFile(path)
+        if (result) {
+          openFileInTab(result.filePath, result.content)
+        }
+      } catch (err) {
+        console.error('Error al abrir el archivo:', err)
+      }
+    },
+    [openFileInTab],
+  )
+
   const handleOpen = useCallback(async () => {
     if (!hasElectronAPI()) return
     const result = await getElectronAPI().openFile()
@@ -637,6 +652,29 @@ function App() {
       }
     })
   }, [handleOpen, handleSave, handleSaveAs, handleExportPdf])
+
+  // ─── Listen to files opened from Finder ───────────────
+
+  useEffect(() => {
+    if (!hasElectronAPI()) return
+
+    // 1. Listen for new files opened while the app is running
+    const unsubscribe = getElectronAPI().onOpenFile((filePath) => {
+      void openFilePath(filePath)
+    })
+
+    // 2. Check if a file was clicked to launch the app
+    getElectronAPI()
+      .checkFileToOpen()
+      .then((filePath) => {
+        if (filePath) {
+          void openFilePath(filePath)
+        }
+      })
+      .catch((err) => console.error('Error al revisar archivo de inicio:', err))
+
+    return unsubscribe
+  }, [openFilePath])
 
   // ─── Keyboard shortcuts ───────────────────────────────
 

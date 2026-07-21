@@ -71,6 +71,9 @@ const electronAPI = {
   getAllFiles: (dirPath: string): Promise<any> =>
     ipcRenderer.invoke('dir:allFiles', dirPath),
 
+  checkFileToOpen: (): Promise<string | null> =>
+    ipcRenderer.invoke('app:ready-to-open'),
+
   onDirectoryChanged: (callback: (info: { eventType: string; filename: string | null }) => void) => {
     const handler = (_event: any, info: { eventType: string; filename: string | null }) => callback(info)
     ipcRenderer.on('dir:changed', handler)
@@ -102,6 +105,13 @@ const electronAPI = {
       for (const { channel, handler } of handlers) {
         ipcRenderer.removeListener(channel, handler)
       }
+    }
+  },
+  onOpenFile: (callback: (filePath: string) => void) => {
+    const handler = (_event: any, filePath: string) => callback(filePath)
+    ipcRenderer.on('file:open-from-main', handler)
+    return () => {
+      ipcRenderer.removeListener('file:open-from-main', handler)
     }
   },
 }

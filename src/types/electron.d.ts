@@ -44,6 +44,7 @@ export type ElectronAPI = {
   getZoomLevel: () => number
   searchInDirectory: (dirPath: string, query: string) => Promise<FileSearchResult[]>
   getAllFiles: (dirPath: string) => Promise<WorkspaceFile[]>
+  checkFileToOpen: () => Promise<string | null>
   resolveWikiLink: (
     workspaceDirPath: string | null,
     activeFilePath: string | null,
@@ -51,6 +52,7 @@ export type ElectronAPI = {
   ) => Promise<{ filePath: string; created: boolean } | { error: string }>
   onDirectoryChanged: (callback: (info: { eventType: string; filename: string | null }) => void) => () => void
   onMenuAction: (callback: (action: string) => void) => () => void
+  onOpenFile: (callback: (filePath: string) => void) => () => void
 }
 
 declare global {
