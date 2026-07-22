@@ -13,6 +13,7 @@ if (!app.requestSingleInstanceLock()) {
 let mainWindow: BrowserWindow | null = null
 let fileToOpen: string | null = null
 let isForceClosing = false
+let closeTimeout: ReturnType<typeof setTimeout> | null = null
 
 app.on('second-instance', () => {
   if (mainWindow) {
@@ -102,7 +103,16 @@ function createWindow() {
     saveWindowState()
     if (!isForceClosing) {
       event.preventDefault()
+      // Safety timeout: if renderer doesn't respond within 3s, force close
+      if (closeTimeout) clearTimeout(closeTimeout)
+      closeTimeout = setTimeout(() => {
+        isForceClosing = true
+        mainWindow?.close()
+      }, 3000)
       mainWindow?.webContents.send('app:check-before-close')
+    } else {
+      // Clear any pending timeout when actually closing
+      if (closeTimeout) { clearTimeout(closeTimeout); closeTimeout = null }
     }
   })
 
@@ -743,14 +753,29 @@ ipcMain.handle('app:ready-to-open', () => {
 })
 
 // ─── Unsaved-changes close flow ──────────────────────────
+
+function clearCloseTimeout() {
+  if (closeTimeout) { clearTimeout(closeTimeout); closeTimeout = null }
+}
+
 ipcMain.on('app:dirty-state', (_event, hasDirty: boolean) => {
+  clearCloseTimeout()
+
   if (!hasDirty) {
     isForceClosing = true
     mainWindow?.close()
     return
   }
 
-  const choice = dialog.showMessageBoxSync(mainWindow!, {
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+  if (!win || win.isDestroyed()) {
+    // Window is gone, just quit
+    isForceClosing = true
+    app.quit()
+    return
+  }
+
+  const choice = dialog.showMessageBoxSync(win, {
     type: 'warning',
     buttons: ['Guardar y cerrar', 'Cerrar sin guardar', 'Cancelar'],
     defaultId: 0,
@@ -770,6 +795,7 @@ ipcMain.on('app:dirty-state', (_event, hasDirty: boolean) => {
 })
 
 ipcMain.on('app:all-saved', () => {
+  clearCloseTimeout()
   isForceClosing = true
   mainWindow?.close()
 })
@@ -790,6 +816,11 @@ app.whenReady().then(() => {
       createWindow()
     }
   })
+})
+
+// On macOS, ⌘Q triggers before-quit before close
+app.on('before-quit', () => {
+  isForceClosing = true
 })
 
 app.on('window-all-closed', () => {
