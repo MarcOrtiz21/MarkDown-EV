@@ -232,7 +232,8 @@ function buildMenu() {
 }
 
 async function exportHtmlToPdf(html: string, suggestedName?: string) {
-  const result = await dialog.showSaveDialog(mainWindow!, {
+  const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
+  const result = await dialog.showSaveDialog(win!, {
     defaultPath: suggestedName?.replace(/\.(md|markdown|txt)$/i, '.pdf') ?? 'documento.pdf',
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   })
@@ -275,22 +276,28 @@ async function exportHtmlToPdf(html: string, suggestedName?: string) {
 }
 
 ipcMain.handle('dialog:openFile', async () => {
-  const result = await dialog.showOpenDialog(mainWindow!, {
-    properties: ['openFile'],
-    filters: [
-      { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd', 'txt'] },
-      { name: 'Todos los archivos', extensions: ['*'] },
-    ],
-  })
+  try {
+    const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
+    const result = await dialog.showOpenDialog(win!, {
+      properties: ['openFile'],
+      filters: [
+        { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd', 'txt'] },
+        { name: 'Todos los archivos', extensions: ['*'] },
+      ],
+    })
 
-  if (result.canceled || result.filePaths.length === 0) {
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+
+    const filePath = result.filePaths[0]
+    const content = await fs.readFile(filePath, 'utf-8')
+
+    return { filePath, content }
+  } catch (err) {
+    console.error('Error opening file dialog:', err)
     return null
   }
-
-  const filePath = result.filePaths[0]
-  const content = await fs.readFile(filePath, 'utf-8')
-
-  return { filePath, content }
 })
 
 ipcMain.handle('file:read', async (_event, filePath: string) => {
@@ -322,69 +329,92 @@ ipcMain.handle('file:readAsDataUrl', async (_event, filePath: string) => {
 ipcMain.handle(
   'dialog:saveFile',
   async (_event, content: string, currentPath?: string) => {
-    if (currentPath) {
-      await fs.writeFile(currentPath, content, 'utf-8')
-      return { filePath: currentPath, saved: true }
-    }
+    try {
+      if (currentPath) {
+        await fs.writeFile(currentPath, content, 'utf-8')
+        return { filePath: currentPath, saved: true }
+      }
 
-    const result = await dialog.showSaveDialog(mainWindow!, {
-      defaultPath: 'documento.md',
-      filters: [
-        { name: 'Markdown', extensions: ['md'] },
-        { name: 'Todos los archivos', extensions: ['*'] },
-      ],
-    })
+      const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
+      const result = await dialog.showSaveDialog(win!, {
+        defaultPath: 'documento.md',
+        filters: [
+          { name: 'Markdown', extensions: ['md'] },
+          { name: 'Todos los archivos', extensions: ['*'] },
+        ],
+      })
 
-    if (result.canceled || !result.filePath) {
+      if (result.canceled || !result.filePath) {
+        return null
+      }
+
+      await fs.writeFile(result.filePath, content, 'utf-8')
+      return { filePath: result.filePath, saved: true }
+    } catch (err) {
+      console.error('Error saving file:', err)
       return null
     }
-
-    await fs.writeFile(result.filePath, content, 'utf-8')
-    return { filePath: result.filePath, saved: true }
   },
 )
 
 ipcMain.handle(
   'dialog:saveFileAs',
   async (_event, content: string, currentPath?: string) => {
-    const result = await dialog.showSaveDialog(mainWindow!, {
-      defaultPath: currentPath ?? 'documento.md',
-      filters: [
-        { name: 'Markdown', extensions: ['md'] },
-        { name: 'Todos los archivos', extensions: ['*'] },
-      ],
-    })
+    try {
+      const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
+      const result = await dialog.showSaveDialog(win!, {
+        defaultPath: currentPath ?? 'documento.md',
+        filters: [
+          { name: 'Markdown', extensions: ['md'] },
+          { name: 'Todos los archivos', extensions: ['*'] },
+        ],
+      })
 
-    if (result.canceled || !result.filePath) {
+      if (result.canceled || !result.filePath) {
+        return null
+      }
+
+      await fs.writeFile(result.filePath, content, 'utf-8')
+      return { filePath: result.filePath, saved: true }
+    } catch (err) {
+      console.error('Error in saveFileAs:', err)
       return null
     }
-
-    await fs.writeFile(result.filePath, content, 'utf-8')
-    return { filePath: result.filePath, saved: true }
   },
 )
 
 ipcMain.handle(
   'export:pdf',
   async (_event, html: string, suggestedName?: string) => {
-    return exportHtmlToPdf(html, suggestedName)
+    try {
+      return await exportHtmlToPdf(html, suggestedName)
+    } catch (err) {
+      console.error('Error exporting PDF:', err)
+      return null
+    }
   },
 )
 
 ipcMain.handle(
   'export:html',
   async (_event, htmlContent: string, suggestedName?: string) => {
-    const result = await dialog.showSaveDialog(mainWindow!, {
-      defaultPath: suggestedName?.replace(/\.(md|markdown|txt)$/i, '.html') ?? 'documento.html',
-      filters: [{ name: 'HTML Document', extensions: ['html'] }],
-    })
+    try {
+      const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
+      const result = await dialog.showSaveDialog(win!, {
+        defaultPath: suggestedName?.replace(/\.(md|markdown|txt)$/i, '.html') ?? 'documento.html',
+        filters: [{ name: 'HTML Document', extensions: ['html'] }],
+      })
 
-    if (result.canceled || !result.filePath) {
+      if (result.canceled || !result.filePath) {
+        return null
+      }
+
+      await fs.writeFile(result.filePath, htmlContent, 'utf-8')
+      return { filePath: result.filePath, saved: true }
+    } catch (err) {
+      console.error('Error exporting HTML:', err)
       return null
     }
-
-    await fs.writeFile(result.filePath, htmlContent, 'utf-8')
-    return { filePath: result.filePath, saved: true }
   },
 )
 
@@ -415,15 +445,21 @@ ipcMain.handle('file:readKatexCss', async () => {
 let activeWatcher: ReturnType<typeof watch> | null = null
 
 ipcMain.handle('dialog:openDirectory', async () => {
-  const result = await dialog.showOpenDialog(mainWindow!, {
-    properties: ['openDirectory'],
-  })
-  if (result.canceled || result.filePaths.length === 0) {
+  try {
+    const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
+    const result = await dialog.showOpenDialog(win!, {
+      properties: ['openDirectory'],
+    })
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+    const dirPath = result.filePaths[0]
+    const dirName = path.basename(dirPath)
+    return { path: dirPath, name: dirName }
+  } catch (err) {
+    console.error('Error in openDirectory dialog:', err)
     return null
   }
-  const dirPath = result.filePaths[0]
-  const dirName = path.basename(dirPath)
-  return { path: dirPath, name: dirName }
 })
 
 ipcMain.handle('dir:list', async (_event, dirPath: string) => {

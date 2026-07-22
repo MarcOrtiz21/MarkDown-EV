@@ -81,6 +81,7 @@ function App() {
   const [config, setConfig] = useState<AppConfig>(() => getAppConfig())
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const zoomLevelRef = useRef(0)
   const dragCounterRef = useRef(0)
@@ -856,22 +857,40 @@ function App() {
       onDrop={(event) => void handleDrop(event)}
     >
       <Toolbar
-          fileName={filePath}
-          isDirty={isDirty}
-          viewMode={viewMode}
-          theme={theme}
-          focusMode={focusMode}
-          onOpen={handleOpen}
-          onSave={handleSave}
-          onSaveAs={handleSaveAs}
-          onExportPdf={handleExportPdf}
-          onExportHtml={handleExportHtml}
-          onCopyRichText={handleCopyRichText}
-          onThemeToggle={handleThemeToggle}
-          onFocusModeToggle={() => setFocusMode((prev) => !prev)}
-          onViewModeChange={setViewMode}
-          onSettingsOpen={() => setIsSettingsOpen(true)}
-        />
+        fileName={filePath}
+        isDirty={isDirty}
+        viewMode={viewMode}
+        theme={theme}
+        focusMode={focusMode}
+        isSidebarOpen={isSidebarOpen}
+        onSidebarToggle={() => setIsSidebarOpen((prev) => !prev)}
+        onOpen={handleOpen}
+        onSave={handleSave}
+        onSaveAs={handleSaveAs}
+        onExportPdf={handleExportPdf}
+        onExportHtml={handleExportHtml}
+        onCopyRichText={handleCopyRichText}
+        onThemeToggle={handleThemeToggle}
+        onFocusModeToggle={() => setFocusMode((prev) => !prev)}
+        onViewModeChange={setViewMode}
+        onSettingsOpen={() => setIsSettingsOpen(true)}
+      />
+
+      <div className="app-layout">
+        {isSidebarOpen && (
+          <FileExplorer
+            currentDir={currentDir}
+            onCurrentDirChange={setCurrentDir}
+            activeFilePath={filePath}
+            activeFileContent={activeTab ? content : null}
+            onOpenFile={handleOpenFileFromExplorer}
+            recentFiles={recentFiles}
+            onRemoveRecentFile={handleRemoveRecentFile}
+            onClearRecentFiles={handleClearRecentFiles}
+            onHeadingClick={handleHeadingClick}
+            onSearchMatchClick={handleSearchMatchClick}
+          />
+        )}
 
         <div className="main-content">
           <TabBar
@@ -894,27 +913,6 @@ function App() {
               ))}
             </div>
           )}
-
-        <FileExplorer
-          currentDir={currentDir}
-          onCurrentDirChange={setCurrentDir}
-          activeFilePath={filePath}
-          activeFileContent={activeTab ? content : null}
-          onOpenFile={handleOpenFileFromExplorer}
-          recentFiles={recentFiles}
-          onRemoveRecentFile={handleRemoveRecentFile}
-          onClearRecentFiles={handleClearRecentFiles}
-          onHeadingClick={handleHeadingClick}
-          onSearchMatchClick={handleSearchMatchClick}
-        />
-
-        <div className="main-content">
-          <TabBar
-            tabs={tabs}
-            activeTabId={activeTabId}
-            onTabSelect={setActiveTabId}
-            onTabClose={handleTabClose}
-          />
 
           {activeTab ? (
             <main

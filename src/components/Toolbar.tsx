@@ -1,5 +1,5 @@
 import type { Theme } from '../lib/theme'
-import { SunIcon, MoonIcon, FileIcon, SettingsIcon } from './Icons'
+import { SunIcon, MoonIcon, FileIcon, SettingsIcon, SidebarToggleIcon } from './Icons'
 
 export type ViewMode = 'edit' | 'split' | 'preview'
 
@@ -26,6 +26,8 @@ type ToolbarProps = {
   viewMode: ViewMode
   theme: Theme
   focusMode?: boolean
+  isSidebarOpen?: boolean
+  onSidebarToggle?: () => void
   onOpen: () => void
   onSave: () => void
   onSaveAs: () => void
@@ -50,6 +52,8 @@ export function Toolbar({
   viewMode,
   theme,
   focusMode = false,
+  isSidebarOpen = true,
+  onSidebarToggle,
   onOpen,
   onSave,
   onSaveAs,
@@ -70,6 +74,16 @@ export function Toolbar({
       <div className="toolbar-drag" />
 
       <div className="toolbar-left">
+        {onSidebarToggle && (
+          <button
+            type="button"
+            className={`action-btn action-btn--icon ${isSidebarOpen ? 'action-btn--accent' : ''}`}
+            onClick={onSidebarToggle}
+            title={isSidebarOpen ? 'Ocultar menú lateral' : 'Mostrar menú lateral (Archivos/Esquema/Buscar)'}
+          >
+            <SidebarToggleIcon size={14} />
+          </button>
+        )}
         <span className="app-name">MarkDown EV</span>
         <span className="file-name">{title}</span>
       </div>

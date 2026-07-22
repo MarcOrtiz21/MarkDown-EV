@@ -79,7 +79,7 @@ body {
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   position: relative;
   z-index: 1;
   -webkit-app-region: no-drag;
@@ -117,12 +117,19 @@ body {
 .action-btn {
   font-family: var(--font-ui);
   font-size: 12px;
-  padding: 5px 12px;
+  height: 28px;
+  line-height: 28px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-tertiary);
   color: var(--text-primary);
   cursor: pointer;
+  box-sizing: border-box;
   transition: background 0.15s, border-color 0.15s;
 }
 
@@ -150,7 +157,12 @@ body {
 }
 
 .action-btn--icon {
-  padding: 5px 10px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 14px;
 }
 
