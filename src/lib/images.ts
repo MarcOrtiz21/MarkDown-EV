@@ -21,18 +21,23 @@ export function resolveImagePath(src: string, filePath: string | null): string {
 }
 
 export function toAppImageUrl(absolutePath: string): string {
-  return `app-image://${encodeURIComponent(absolutePath)}`
+  // Keep a valid URI authority. Encoding the absolute path immediately after
+  // `//` makes it look like a hostname to Chromium and breaks local images.
+  return `app-image://local/${encodeURIComponent(absolutePath.replace(/\\/g, '/'))}`
 }
 
 export function fromAppImageUrl(url: string): string | null {
   if (!url.startsWith('app-image://')) return null
-  return decodeURIComponent(url.slice('app-image://'.length))
+  const payload = url.slice('app-image://'.length)
+  const encodedPath = payload.startsWith('local/') ? payload.slice('local/'.length) : payload
+  return decodeURIComponent(encodedPath)
 }
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i
+const MARKDOWN_EXT = /\.(md|markdown|mdown|mkd|txt)$/i
 
 export function isMarkdownFile(filePath: string): boolean {
-  return /\.(md|markdown|mdown|mkd|txt)$/i.test(filePath)
+  return MARKDOWN_EXT.test(filePath)
 }
 
 export function isImageFile(filePath: string): boolean {

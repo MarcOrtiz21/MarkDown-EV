@@ -1,0 +1,81 @@
+MARKDOWN EV — LICENCIA DE USO RESTRINGIDO
+VERSIÓN 1.0 — 15 DE SEPTIEMBRE DE 2026
+
+Copyright (c) 2026 Marc Ortiz
+Todos los derechos reservados.
+
+AVISO IMPORTANTE
+
+Esta no es una licencia de código abierto ni una licencia de uso libre. MarkDown EV es un proyecto de código fuente visible con derechos reservados. El acceso público al repositorio permite inspeccionar su contenido, pero no concede por sí mismo derechos para utilizarlo, copiarlo, modificarlo, redistribuirlo o explotarlo.
+
+1. TITULARIDAD
+
+1.1. MarkDown EV comprende, entre otros elementos, su código fuente, código compilado, documentación, arquitectura, interfaz, diseños, textos, iconos, recursos, configuraciones, scripts, tests y materiales originales asociados al proyecto.
+
+1.2. Todos los derechos sobre los elementos propios de MarkDown EV pertenecen a Marc Ortiz, salvo los componentes de terceros identificados expresamente como tales.
+
+1.3. Esta licencia no transfiere la propiedad intelectual del proyecto ni constituye una venta, cesión, licencia implícita, representación, sociedad o relación de agencia entre el titular y el usuario.
+
+2. PERMISO LIMITADO
+
+2.1. Se concede únicamente a una persona física un permiso limitado, revocable, no exclusivo, no transferible, no sublicenciable y gratuito para consultar el repositorio y ejecutar una copia local exclusivamente para evaluación privada y personal.
+
+2.2. La evaluación privada no permite utilizar MarkDown EV en producción, en una organización, para prestar servicios a terceros ni para generar ingresos directos o indirectos.
+
+2.3. El permiso queda condicionado al cumplimiento íntegro de esta licencia y no se extiende automáticamente a colaboradores, empresas, clientes, usuarios finales, grupos, comunidades o cualquier otra persona.
+
+3. USOS PROHIBIDOS
+
+Sin autorización previa, expresa y por escrito de Marc Ortiz, queda prohibido:
+
+- copiar, reproducir o publicar el proyecto o cualquier parte sustancial del mismo;
+- redistribuirlo, compartirlo, alojarlo o ponerlo a disposición de terceros;
+- crear, mantener o distribuir forks, clones, mirrors o versiones derivadas;
+- modificarlo para distribuirlo, sublicenciarlo o incorporarlo a otro proyecto;
+- venderlo, alquilarlo, licenciarlo, sublicenciarlo, cederlo o explotarlo;
+- utilizarlo con fines comerciales, profesionales, empresariales, educativos remunerados o lucrativos;
+- integrarlo en productos, plataformas, servicios, aplicaciones, APIs, bots o flujos de trabajo de terceros;
+- ofrecerlo como servicio, SaaS, servicio gestionado, herramienta interna compartida o producto de consultoría;
+- eliminar, ocultar o alterar avisos de copyright, atribución, marca, procedencia o licencia;
+- intentar eludir controles técnicos, límites de uso, autenticación, mecanismos de acceso o restricciones del proyecto;
+- registrar derechos, marcas, nombres de producto o dominios que puedan inducir a confusión con MarkDown EV o con su titular.
+
+4. MODIFICACIONES Y DERIVADOS
+
+4.1. El permiso de evaluación no autoriza a distribuir modificaciones, parches, adaptaciones, traducciones ni trabajos derivados.
+
+4.2. Cualquier modificación local deberá conservar todos los avisos de propiedad y esta licencia. La modificación no crea ningún derecho sobre MarkDown EV ni autoriza su publicación.
+
+4.3. No se concede permiso para combinar MarkDown EV con software, datos o servicios de forma que una licencia de terceros pueda otorgar derechos sobre los elementos propios del proyecto o limitar los derechos del titular.
+
+5. COMPONENTES DE TERCEROS
+
+Esta licencia no sustituye, modifica ni amplía las licencias de bibliotecas, fuentes, iconos, datos, APIs o recursos de terceros. Esos componentes siguen sujetos a sus propias condiciones. Cuando exista un conflicto, los derechos sobre el componente de terceros se regirán por su licencia correspondiente, sin ampliar los derechos sobre los elementos propios de MarkDown EV.
+
+6. PLAZO Y TERMINACIÓN
+
+6.1. El permiso limitado termina automáticamente si el usuario incumple esta licencia, si utiliza el proyecto fuera del alcance autorizado o si el titular lo revoca por escrito.
+
+6.2. Al terminar el permiso, el usuario deberá cesar todo uso y eliminar las copias locales, modificaciones y materiales derivados que estén bajo su control, salvo que una obligación legal exija conservarlos.
+
+6.3. Las disposiciones sobre titularidad, usos prohibidos, limitación de responsabilidad y cumplimiento continuarán aplicándose después de la terminación.
+
+7. SIN GARANTÍAS
+
+MarkDown EV se proporciona “tal cual” y “según disponibilidad”, sin garantías expresas o implícitas de ningún tipo, incluyendo, en la medida permitida por la ley, garantías de exactitud, disponibilidad, continuidad, comerciabilidad, idoneidad para un propósito concreto, ausencia de errores, ausencia de infracciones o adecuación a una normativa determinada.
+
+8. LIMITACIÓN DE RESPONSABILIDAD
+
+En la medida permitida por la ley, Marc Ortiz no será responsable de pérdidas, daños, interrupciones, pérdida de datos, pérdida de beneficios, reclamaciones de terceros ni perjuicios directos o indirectos derivados del acceso, ejecución, modificación o uso de MarkDown EV.
+
+9. CUMPLIMIENTO LEGAL
+
+Esta licencia no pretende excluir derechos que la legislación aplicable no permita excluir. Si una disposición resultara inválida o inaplicable, se aplicará en la máxima medida permitida y las restantes disposiciones conservarán su vigencia.
+
+10. AUTORIZACIONES ESPECIALES Y CONTACTO
+
+Cualquier uso distinto de la evaluación privada requiere una autorización previa, expresa y por escrito del titular. Para solicitar una licencia comercial, una autorización de redistribución, una colaboración o cualquier excepción, contacta con Marc Ortiz mediante su perfil de GitHub:
+
+https://github.com/MarcOrtiz21
+
+La publicación del repositorio en GitHub, su visibilidad pública, la posibilidad técnica de crear un fork o cualquier interacción con el repositorio no constituye autorización adicional.

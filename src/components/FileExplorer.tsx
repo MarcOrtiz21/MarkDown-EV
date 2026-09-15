@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getElectronAPI, hasElectronAPI } from '../lib/electron'
+import { isMarkdownFile } from '../lib/images'
+import { slugifyHeading } from '../lib/markdown'
 import type { FileSearchResult } from '../types/electron'
 import {
   FolderIcon,
@@ -43,6 +45,7 @@ function parseHeadings(markdownText: string | null): HeadingItem[] {
   if (!markdownText) return []
   const lines = markdownText.split('\n')
   const headings: HeadingItem[] = []
+  const headingCounts = new Map<string, number>()
   
   let inCodeBlock = false
   for (let i = 0; i < lines.length; i++) {
@@ -57,10 +60,10 @@ function parseHeadings(markdownText: string | null): HeadingItem[] {
     if (match) {
       const level = match[1].length
       const text = match[2].trim()
-      const id = text
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, '')
-        .replace(/\s+/g, '-')
+      const baseId = slugifyHeading(text)
+      const count = headingCounts.get(baseId) ?? 0
+      headingCounts.set(baseId, count + 1)
+      const id = count === 0 ? baseId : `${baseId}-${count}`
       headings.push({ text, level, id, line: i })
     }
   }
@@ -118,6 +121,7 @@ export function FileExplorer({
   const [searchResults, setSearchResults] = useState<FileSearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set())
+  const searchRequestRef = useRef(0)
 
   // Parse headings from the current document
   const headings = parseHeadings(activeFileContent)
@@ -189,18 +193,24 @@ export function FileExplorer({
 
   // Debounced search effect
   useEffect(() => {
+    const requestId = ++searchRequestRef.current
     if (!searchQuery.trim() || !currentDir) {
       setSearchResults([])
+      setIsSearching(false)
       return
     }
 
     setIsSearching(true)
     const timer = setTimeout(async () => {
-      if (hasElectronAPI()) {
+      try {
+        if (!hasElectronAPI()) return
         const results = await getElectronAPI().searchInDirectory(currentDir.path, searchQuery.trim())
-        setSearchResults(results)
+        if (requestId === searchRequestRef.current) setSearchResults(results)
+      } catch {
+        if (requestId === searchRequestRef.current) setSearchResults([])
+      } finally {
+        if (requestId === searchRequestRef.current) setIsSearching(false)
       }
-      setIsSearching(false)
     }, 300) // 300ms debounce
 
     return () => clearTimeout(timer)
@@ -301,7 +311,6 @@ export function FileExplorer({
                     onChange={(e) => setNewFileName(e.target.value)}
                     placeholder="nuevo-archivo.md"
                     autoFocus
-                    onBlur={() => setCreatingInPath(null)}
                   />
                 </form>
               )}
@@ -312,8 +321,7 @@ export function FileExplorer({
         </div>
       )
     } else {
-      const isMd = /\.md$/i.test(node.name)
-      if (!isMd && !/\.txt$/i.test(node.name)) return null
+      if (!isMarkdownFile(node.name)) return null
 
       return (
         <div
@@ -321,6 +329,15 @@ export function FileExplorer({
           className={`file-tree-node file-tree-node--file depth-${depth} ${isActive ? 'active' : ''}`}
           style={{ paddingLeft: `${depth * 12 + 20}px` }}
           onClick={() => onOpenFile(node.path)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              onOpenFile(node.path)
+            }
+          }}
+          aria-label={`Abrir ${node.name}`}
         >
           <span className="file-tree-label">
             <FileIcon className="node-icon file-icon" size={14} />
@@ -414,7 +431,6 @@ export function FileExplorer({
                         onChange={(e) => setNewFileName(e.target.value)}
                         placeholder="nuevo-archivo.md"
                         autoFocus
-                        onBlur={() => setCreatingInPath(null)}
                       />
                     </form>
                   )}

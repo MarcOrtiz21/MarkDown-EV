@@ -85,6 +85,8 @@ export function MarkdownEditor({
   const initialValueRef = useRef(value)
   const themeRef = useRef(theme)
   const onPasteImageRef = useRef(onPasteImage)
+  const pendingImageRangesRef = useRef<Array<{ from: number; to: number }>>([])
+  const initialConfigRef = useRef({ fontSize, fontFamily, lineHeight, tabSize, vimMode })
 
   useEffect(() => {
     onPasteImageRef.current = onPasteImage
@@ -142,6 +144,10 @@ export function MarkdownEditor({
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             onChangeRef.current(update.state.doc.toString())
+            for (const range of pendingImageRangesRef.current) {
+              range.from = update.changes.mapPos(range.from, 1)
+              range.to = update.changes.mapPos(range.to, -1)
+            }
           }
         }),
         EditorView.theme({
@@ -165,8 +171,13 @@ export function MarkdownEditor({
             const file = event.clipboardData?.files[0]
             if (file && file.type.startsWith('image/') && onPasteImageRef.current) {
               event.preventDefault()
+              const selection = view.state.selection.main
+              const range = { from: selection.from, to: selection.to }
+              pendingImageRangesRef.current.push(range)
               onPasteImageRef.current(file, (relativePath) => {
-                const { from, to } = view.state.selection.main
+                pendingImageRangesRef.current = pendingImageRangesRef.current.filter((item) => item !== range)
+                const from = Math.min(range.from, view.state.doc.length)
+                const to = Math.min(range.to, view.state.doc.length)
                 const textToInsert = `![Imagen](${relativePath})`
                 view.dispatch({
                   changes: { from, to, insert: textToInsert },
@@ -182,11 +193,15 @@ export function MarkdownEditor({
             if (file && file.type.startsWith('image/') && onPasteImageRef.current) {
               event.preventDefault()
               const pos = view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.head
+              const range = { from: pos, to: pos }
+              pendingImageRangesRef.current.push(range)
               onPasteImageRef.current(file, (relativePath) => {
+                pendingImageRangesRef.current = pendingImageRangesRef.current.filter((item) => item !== range)
+                const insertionPos = Math.min(range.from, view.state.doc.length)
                 const textToInsert = `![${file.name}](${relativePath})`
                 view.dispatch({
-                  changes: { from: pos, to: pos, insert: textToInsert },
-                  selection: { anchor: pos + textToInsert.length },
+                  changes: { from: insertionPos, to: insertionPos, insert: textToInsert },
+                  selection: { anchor: insertionPos + textToInsert.length },
                 })
               })
               return true
@@ -198,17 +213,17 @@ export function MarkdownEditor({
         styleCompartment.of(
           EditorView.theme({
             '.cm-content, .cm-gutter, .cm-scroller': {
-              fontSize: `${fontSize}px !important`,
-              fontFamily: `${fontFamily} !important`,
-              lineHeight: `${lineHeight} !important`,
+              fontSize: `${initialConfigRef.current.fontSize}px !important`,
+              fontFamily: `${initialConfigRef.current.fontFamily} !important`,
+              lineHeight: `${initialConfigRef.current.lineHeight} !important`,
             },
           })
         ),
         tabSizeCompartment.of([
-          EditorState.tabSize.of(tabSize),
-          indentUnit.of(' '.repeat(tabSize)),
+          EditorState.tabSize.of(initialConfigRef.current.tabSize),
+          indentUnit.of(' '.repeat(initialConfigRef.current.tabSize)),
         ]),
-        vimCompartment.of(vimMode ? vim() : []),
+        vimCompartment.of(initialConfigRef.current.vimMode ? vim() : []),
       ],
     })
 
@@ -278,4 +293,3 @@ export function MarkdownEditor({
     />
   )
 }
-

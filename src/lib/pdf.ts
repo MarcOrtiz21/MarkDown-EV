@@ -1,4 +1,5 @@
 import { renderMarkdown } from './markdown'
+import { fromAppImageUrl } from './images'
 
 const PRINT_CSS = `
   * { box-sizing: border-box; }
@@ -69,17 +70,51 @@ export function buildPdfDocument(bodyHtml: string, katexCss?: string): string {
 </html>`
 }
 
+async function renderMermaidForExport(html: string): Promise<string> {
+  if (typeof document === 'undefined' || !html.includes('class="mermaid"')) {
+    return html
+  }
+
+  const container = document.createElement('div')
+  container.innerHTML = html
+  const mermaidNodes = container.querySelectorAll<HTMLElement>('.mermaid')
+  if (mermaidNodes.length === 0) return html
+
+  // Mermaid needs DOM access while rendering. Keep the temporary container out
+  // of the layout, then return the generated SVG in the self-contained export.
+  container.style.cssText = 'position:fixed;left:-100000px;top:-100000px;'
+  document.body.appendChild(container)
+
+  try {
+    const { default: mermaid } = await import('mermaid')
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'strict',
+    })
+    await mermaid.run({ nodes: mermaidNodes })
+    return container.innerHTML
+  } catch {
+    // Keep the source block if the diagram is incomplete while being edited.
+    return html
+  } finally {
+    container.remove()
+  }
+}
+
 export async function prepareExportHtml(
   content: string,
   filePath: string | null,
   resolveImage: (absolutePath: string) => Promise<string | null>,
 ): Promise<string> {
   let html = renderMarkdown(content, filePath)
+  html = await renderMermaidForExport(html)
 
   const matches = [...html.matchAll(/src="(app-image:\/\/[^"]+)"/g)]
   for (const match of matches) {
     const appUrl = match[1]
-    const absolutePath = decodeURIComponent(appUrl.slice('app-image://'.length))
+    const absolutePath = fromAppImageUrl(appUrl)
+    if (!absolutePath) continue
     const dataUrl = await resolveImage(absolutePath)
     if (dataUrl) {
       html = html.replace(match[0], `src="${dataUrl}"`)

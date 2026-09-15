@@ -408,6 +408,233 @@ body {
   background: #aaa;
 }
 
+/* ── Unified interface system ── */
+:root,
+[data-theme='dark'] {
+  --accent: #8794ff;
+  --accent-hover: #9ba6ff;
+  --control-height: 32px;
+  --radius-control: 8px;
+  --radius-panel: 10px;
+}
+
+[data-theme='light'] {
+  --accent: #5367d9;
+  --accent-hover: #4358c8;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex='0']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.toolbar {
+  height: 58px;
+  padding: 0 14px 0 16px;
+  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--bg-primary));
+}
+
+.toolbar-left,
+.toolbar-center,
+.toolbar-right {
+  gap: 5px;
+}
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-right: 14px;
+}
+
+.app-logo {
+  flex: 0 0 auto;
+}
+
+.app-name {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+
+.file-name {
+  max-width: min(240px, 22vw);
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+
+.view-btn,
+.action-btn {
+  height: var(--control-height);
+  line-height: normal;
+  border-radius: var(--radius-control);
+  border-color: color-mix(in srgb, var(--border) 86%, transparent);
+  background: transparent;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.view-btn {
+  min-width: 78px;
+  border-color: transparent;
+}
+
+.view-btn:hover,
+.action-btn:hover:not(:disabled) {
+  border-color: var(--border);
+  background: var(--bg-hover);
+}
+
+.view-btn.active {
+  background: var(--bg-tertiary);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+.action-btn {
+  padding: 0 9px;
+}
+
+.action-btn--icon {
+  width: var(--control-height);
+  padding: 0;
+}
+
+.action-btn--accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.action-btn--accent:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.tab-bar {
+  min-height: 40px;
+  padding: 5px 8px 0;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-item {
+  min-width: 132px;
+  max-width: 220px;
+  height: 35px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.tab-item:hover {
+  background: var(--bg-hover);
+}
+
+.tab-item.active {
+  background: var(--bg-primary);
+  border-color: var(--border);
+  border-bottom-color: var(--bg-primary);
+}
+
+.tab-close-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.tab-close-btn:hover {
+  background: var(--bg-tertiary);
+}
+
+.sidebar-explorer {
+  width: 264px;
+  min-width: 220px;
+  background: var(--bg-secondary);
+  border-right-color: var(--border);
+}
+
+.sidebar-tabs {
+  padding: 6px 8px 0;
+  gap: 3px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-tab-btn {
+  min-height: 34px;
+  border: 0;
+  border-radius: 7px 7px 0 0;
+}
+
+.workspace-resizer {
+  position: relative;
+  width: 3px;
+  background: transparent;
+  transition: background-color 140ms ease;
+}
+
+.workspace-resizer::after {
+  width: 11px;
+  left: -4px;
+}
+
+.workspace-resizer:hover,
+.workspace-resizer:active,
+.workspace-resizer:focus-visible {
+  width: 3px;
+  background: var(--accent);
+}
+
+.statusbar {
+  height: 28px;
+  padding: 0 14px;
+  background: var(--bg-secondary);
+}
+
+.toast-notification {
+  bottom: 40px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-secondary);
+}
+
+@media (max-width: 1100px) {
+  .toolbar-center {
+    display: none;
+  }
+
+  .file-name {
+    max-width: 25vw;
+  }
+}
+
+@media (max-width: 820px) {
+  .toolbar-right .action-btn:not(.action-btn--icon):not(.action-btn--accent) {
+    display: none;
+  }
+
+  .app-name {
+    display: none;
+  }
+
+  .app-brand {
+    margin-right: 8px;
+  }
+}
+
 /* Drag & drop overlay */
 .drop-overlay {
   position: fixed;
@@ -2058,13 +2285,13 @@ body {
 
 /* ── Focus Mode (Editor & Preview) ── */
 
-.cm-editor.focus-mode-active .cm-line:not(.cm-activeLine) {
+.markdown-editor.focus-mode-active .cm-line:not(.cm-activeLine) {
   opacity: 0.25 !important;
   filter: blur(0.3px);
   transition: opacity 0.2s, filter 0.2s;
 }
 
-.cm-editor.focus-mode-active .cm-line.cm-activeLine {
+.markdown-editor.focus-mode-active .cm-line.cm-activeLine {
   opacity: 1 !important;
   filter: none;
 }

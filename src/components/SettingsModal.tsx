@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AppConfig } from '../lib/config'
 import { DEFAULT_CONFIG } from '../lib/config'
 import { CloseIcon } from './Icons'
@@ -24,11 +24,13 @@ export function SettingsModal({
   onSaveConfig,
 }: SettingsModalProps) {
   const [tempConfig, setTempConfig] = useState<AppConfig>({ ...config })
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   // Synchronize state when modal opens
   useEffect(() => {
     if (isOpen) {
       setTempConfig({ ...config })
+      requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLElement>('button, input, select')?.focus())
     }
   }, [isOpen, config])
 
@@ -40,6 +42,20 @@ export function SettingsModal({
       if (e.key === 'Escape') {
         e.preventDefault()
         onClose()
+      } else if (e.key === 'Tab') {
+        const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button, input, select, [tabindex]:not([tabindex="-1"])',
+        )
+        if (!focusable?.length) return
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
       }
     }
 
@@ -66,11 +82,18 @@ export function SettingsModal({
   if (!isOpen) return null
 
   return (
-    <div className="settings-modal-overlay" onClick={onClose}>
-      <div className="settings-modal-dialog" onClick={(e) => e.stopPropagation()}>
+    <div className="settings-modal-overlay" role="presentation" onClick={onClose}>
+      <div
+        ref={dialogRef}
+        className="settings-modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <header className="settings-modal-header">
-          <h2>Preferencias</h2>
-          <button type="button" className="settings-close-btn" onClick={onClose}>
+          <h2 id="settings-modal-title">Preferencias</h2>
+          <button type="button" className="settings-close-btn" aria-label="Cerrar preferencias" onClick={onClose}>
             <CloseIcon size={14} />
           </button>
         </header>

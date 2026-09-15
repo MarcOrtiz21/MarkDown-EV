@@ -72,7 +72,16 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabReorde
             className={`tab-item ${isActive ? 'active' : ''} ${isDirty ? 'dirty' : ''} ${
               isDragging ? 'dragging' : ''
             } ${isDragOver ? 'drag-over' : ''}`}
+            role="tab"
+            aria-selected={isActive}
+            tabIndex={isActive ? 0 : -1}
             onClick={() => onTabSelect(tab.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onTabSelect(tab.id)
+              }
+            }}
             title={tab.filePath ?? 'Documento sin guardar'}
           >
             <FileIcon className="tab-icon" size={13} />
@@ -81,6 +90,7 @@ export function TabBar({ tabs, activeTabId, onTabSelect, onTabClose, onTabReorde
             <button
               type="button"
               className="tab-close-btn"
+              aria-label={`Cerrar ${title}`}
               title="Cerrar pestaña"
               onClick={(e) => {
                 e.stopPropagation()

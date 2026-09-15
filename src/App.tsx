@@ -1,18 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { MarkdownEditor } from './components/MarkdownEditor'
-import { MarkdownPreview } from './components/MarkdownPreview'
-import { FileExplorer } from './components/FileExplorer'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { TabBar, type Tab } from './components/TabBar'
 import { DropOverlay, Toolbar, type ViewMode } from './components/Toolbar'
 import { EmptyIcon } from './components/Icons'
-import { CommandPalette } from './components/CommandPalette'
 import { getElectronAPI, hasElectronAPI } from './lib/electron'
 import { isMarkdownFile } from './lib/images'
-import { prepareExportHtml } from './lib/pdf'
 import { applyTheme, getStoredTheme, setStoredTheme, type Theme } from './lib/theme'
 import { getAppConfig, saveAppConfig, type AppConfig } from './lib/config'
-import { SettingsModal } from './components/SettingsModal'
 import './App.css'
+
+const MarkdownEditor = lazy(() =>
+  import('./components/MarkdownEditor').then(({ MarkdownEditor: component }) => ({ default: component })),
+)
+const MarkdownPreview = lazy(() =>
+  import('./components/MarkdownPreview').then(({ MarkdownPreview: component }) => ({ default: component })),
+)
+const FileExplorer = lazy(() =>
+  import('./components/FileExplorer').then(({ FileExplorer: component }) => ({ default: component })),
+)
+const CommandPalette = lazy(() =>
+  import('./components/CommandPalette').then(({ CommandPalette: component }) => ({ default: component })),
+)
+const SettingsModal = lazy(() =>
+  import('./components/SettingsModal').then(({ SettingsModal: component }) => ({ default: component })),
+)
+
+async function prepareDocumentExport(content: string, filePath: string | null): Promise<string> {
+  const { prepareExportHtml } = await import('./lib/pdf')
+  return prepareExportHtml(content, filePath, (absolutePath) =>
+    getElectronAPI().readAsDataUrl(absolutePath),
+  )
+}
 
 const WELCOME = `# Bienvenido a MarkDown EV
 
@@ -29,7 +46,7 @@ $$
 $$
 
 - **Imágenes locales** — \`![alt](./imagen.png)\` relativo al archivo abierto
-- **Exportar PDF** — botón PDF o ⌘P
+- **Exportar PDF** — botón PDF o ⌘P (paleta de comandos: ⌘⇧P)
 - **Temas** — oscuro / claro con el botón ☀️/🌙
 
 ## Atajos
@@ -39,6 +56,7 @@ $$
 | Abrir | ⌘O |
 | Guardar | ⌘S |
 | Exportar PDF | ⌘P |
+| Paleta de comandos | ⌘⇧P |
 | Solo editor | ⌘1 |
 | Dividido | ⌘2 |
 | Solo preview | ⌘3 |
@@ -97,7 +115,10 @@ function App() {
   const [recentFiles, setRecentFiles] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem(RECENT_FILES_KEY)
-      return stored ? JSON.parse(stored) : []
+      const parsed: unknown = stored ? JSON.parse(stored) : []
+      return Array.isArray(parsed) && parsed.every((item) => typeof item === 'string')
+        ? parsed.slice(0, 15)
+        : []
     } catch {
       return []
     }
@@ -110,6 +131,7 @@ function App() {
   const scrollGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tabsRef = useRef(tabs)
   tabsRef.current = tabs
+  const activeFilePathRef = useRef<string | null>(null)
 
   // Active Tab Derived State
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
@@ -117,6 +139,7 @@ function App() {
   const filePath = activeTab ? activeTab.filePath : null
   const savedContent = activeTab ? activeTab.savedContent : ''
   const isDirty = activeTab ? content !== savedContent : false
+  activeFilePathRef.current = filePath
 
   useEffect(() => {
     applyTheme(theme)
@@ -162,6 +185,19 @@ function App() {
       )
     },
     [activeTabId],
+  )
+
+  const handleTaskToggle = useCallback(
+    (sourceLine: number, checked: boolean) => {
+      const lines = content.split('\n')
+      if (sourceLine < 0 || sourceLine >= lines.length) return
+      lines[sourceLine] = lines[sourceLine].replace(
+        /^(\s*(?:[-*+]|\d+[.)])\s+\[)( |x|X)(\])/,
+        `$1${checked ? 'x' : ' '}$3`,
+      )
+      setContent(lines.join('\n'))
+    },
+    [content, setContent],
   )
 
   // Create new blank file tab
@@ -220,24 +256,41 @@ function App() {
         const result = await getElectronAPI().readFile(path)
         if (result) {
           openFileInTab(result.filePath, result.content)
+        } else if (recentFiles.includes(path)) {
+          handleRemoveRecentFile(path)
+          showToast('El archivo reciente ya no está disponible')
+        } else {
+          showToast('No se pudo leer el archivo')
         }
       } catch (err) {
         console.error('Error al abrir el archivo:', err)
+        showToast('No se pudo abrir el archivo')
       }
     },
-    [openFileInTab],
+    [handleRemoveRecentFile, openFileInTab, recentFiles, showToast],
   )
 
   const handleOpen = useCallback(async () => {
     if (!hasElectronAPI()) return
-    const result = await getElectronAPI().openFile()
-    if (!result) return
-    openFileInTab(result.filePath, result.content)
-  }, [openFileInTab])
+    try {
+      const result = await getElectronAPI().openFile()
+      if (!result) return
+      openFileInTab(result.filePath, result.content)
+    } catch (err) {
+      console.error('Error al abrir el selector de archivos:', err)
+      showToast('No se pudo abrir el selector de archivos')
+    }
+  }, [openFileInTab, showToast])
 
   const handleSave = useCallback(async () => {
     if (!activeTabId || !hasElectronAPI()) return
-    const result = await getElectronAPI().saveFile(content, filePath ?? undefined)
+    let result
+    try {
+      result = await getElectronAPI().saveFile(content, filePath ?? undefined)
+    } catch {
+      setStatusMessage('Error al guardar el archivo')
+      return
+    }
     if (!result) return
 
     // Update tab info
@@ -326,9 +379,7 @@ function App() {
     if (!activeTab) return
     setStatusMessage('Generando HTML…')
     try {
-      const html = await prepareExportHtml(content, filePath, (absolutePath) =>
-        getElectronAPI().readAsDataUrl(absolutePath),
-      )
+      const html = await prepareDocumentExport(content, filePath)
       const suggestedName = filePath?.split(/[/\\]/).pop() ?? 'documento.md'
       if (hasElectronAPI()) {
         const result = await getElectronAPI().exportHtml(html, suggestedName)
@@ -346,9 +397,7 @@ function App() {
   const handleCopyRichText = useCallback(async () => {
     if (!activeTab) return
     try {
-      const html = await prepareExportHtml(content, filePath, (absolutePath) =>
-        getElectronAPI().readAsDataUrl(absolutePath),
-      )
+      const html = await prepareDocumentExport(content, filePath)
       const blobHtml = new Blob([html], { type: 'text/html' })
       const blobText = new Blob([content], { type: 'text/plain' })
       const clipboardItem = new ClipboardItem({
@@ -370,9 +419,7 @@ function App() {
     setStatusMessage('Generando PDF…')
 
     try {
-      const html = await prepareExportHtml(content, filePath, (absolutePath) =>
-        getElectronAPI().readAsDataUrl(absolutePath),
-      )
+      const html = await prepareDocumentExport(content, filePath)
 
       const suggestedName = filePath?.split(/[/\\]/).pop() ?? 'documento.md'
       const result = await getElectronAPI().exportPdf(html, suggestedName)
@@ -472,6 +519,7 @@ function App() {
     const reader = new FileReader()
     reader.onload = async () => {
       try {
+        const targetFilePath = filePath
         const base64Data = (reader.result as string).split(',')[1]
         const ext = file.type.split('/')[1] || 'png'
         const imageName = `pasted_image_${Date.now()}.${ext}`
@@ -481,6 +529,11 @@ function App() {
           setStatusMessage(result.error)
           setTimeout(() => setStatusMessage(null), 3000)
         } else {
+          if (activeFilePathRef.current !== targetFilePath) {
+            setStatusMessage('La pestaña cambió; imagen guardada sin insertar')
+            setTimeout(() => setStatusMessage(null), 3000)
+            return
+          }
           insertCallback(result.relativePath)
           setStatusMessage('Imagen del portapapeles guardada')
           setTimeout(() => setStatusMessage(null), 3000)
@@ -512,11 +565,19 @@ function App() {
   const handleOpenFileFromExplorer = useCallback(
     async (path: string) => {
       if (!hasElectronAPI()) return
-      const result = await getElectronAPI().readFile(path)
-      if (!result) return
-      openFileInTab(result.filePath, result.content)
+      try {
+        const result = await getElectronAPI().readFile(path)
+        if (!result) {
+          showToast('No se pudo leer el archivo')
+          return
+        }
+        openFileInTab(result.filePath, result.content)
+      } catch (err) {
+        console.error('Error al abrir el archivo desde el explorador:', err)
+        showToast('No se pudo abrir el archivo')
+      }
     },
-    [openFileInTab],
+    [openFileInTab, showToast],
   )
 
   const handleSearchMatchClick = useCallback(
@@ -671,17 +732,47 @@ function App() {
 
       const path = getElectronAPI().getPathForFile(file)
       if (!isMarkdownFile(path)) {
-        setStatusMessage('Solo se admiten archivos .md / .txt')
+        setStatusMessage('Solo se admiten archivos Markdown (.md, .markdown, .mdown, .mkd o .txt)')
         setTimeout(() => setStatusMessage(null), 3000)
         return
       }
 
-      const result = await getElectronAPI().readFile(path)
+      const result = await getElectronAPI().readDroppedFile(file)
       if (!result) return
       openFileInTab(result.filePath, result.content)
     },
     [openFileInTab],
   )
+
+  // Refresh clean tabs when the corresponding file changes on disk. Dirty tabs
+  // stay untouched so an external save can never overwrite local edits.
+  useEffect(() => {
+    if (!hasElectronAPI() || !currentDir) return
+    const api = getElectronAPI()
+
+    return api.onDirectoryChanged(({ filename }) => {
+      if (!filename) return
+      const changedPath = filename.startsWith('/')
+        ? filename
+        : `${currentDir.path}/${filename}`.replace(/\\/g, '/')
+      const knownTab = tabsRef.current.find((tab) => tab.filePath === changedPath)
+      if (!knownTab || knownTab.content !== knownTab.savedContent) return
+
+      void api.readFile(changedPath).then((result) => {
+        if (!result) return
+        setTabs((previousTabs) =>
+          previousTabs.map((tab) =>
+            tab.filePath === changedPath && tab.content === tab.savedContent
+              ? { ...tab, content: result.content, savedContent: result.content }
+              : tab,
+            ),
+        )
+      }).catch(() => {
+        // The file may have been deleted or renamed between the watcher event
+        // and this read; leave the open tab unchanged.
+      })
+    })
+  }, [currentDir])
 
   // ─── Menu actions ─────────────────────────────────────
 
@@ -720,23 +811,38 @@ function App() {
 
   useEffect(() => {
     if (!hasElectronAPI()) return
+    const api = getElectronAPI()
 
     // 1. Listen for new files opened while the app is running
-    const unsubscribe = getElectronAPI().onOpenFile((filePath) => {
-      void openFilePath(filePath)
+    const unsubscribe = api.onOpenFile((filePath) => {
+      void (async () => {
+        await openFilePath(filePath)
+        api.acknowledgeFileOpen(filePath)
+      })()
     })
 
-    // 2. Check if a file was clicked to launch the app
-    getElectronAPI()
-      .checkFileToOpen()
-      .then((filePath) => {
+    // 2. Consume queued files from startup/Finder. The polling fallback
+    // covers macOS events delivered before React mounted its listener.
+    const consumePendingFile = async () => {
+      try {
+        const filePath = await api.checkFileToOpen()
         if (filePath) {
-          void openFilePath(filePath)
+          await openFilePath(filePath)
+          api.acknowledgeFileOpen(filePath)
         }
-      })
-      .catch((err) => console.error('Error al revisar archivo de inicio:', err))
+      } catch (err) {
+        console.error('Error al revisar archivo de Finder:', err)
+      }
+    }
+    void consumePendingFile()
+    const pendingFileTimer = window.setInterval(() => {
+      void consumePendingFile()
+    }, 500)
 
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      window.clearInterval(pendingFileTimer)
+    }
   }, [openFilePath])
 
   // ─── Unsaved-changes close guard ────────────────────────
@@ -751,12 +857,27 @@ function App() {
     })
 
     const unsubSave = api.onSaveAllThenClose(async () => {
+      let allSaved = true
       for (const tab of tabsRef.current) {
-        if (tab.content !== tab.savedContent && tab.filePath) {
-          await api.saveFile(tab.content, tab.filePath)
+        if (tab.content !== tab.savedContent) {
+          try {
+            const result = await api.saveFile(tab.content, tab.filePath ?? undefined)
+            if (!result) {
+              allSaved = false
+              break
+            }
+          } catch {
+            allSaved = false
+            break
+          }
         }
       }
-      api.reportAllSaved()
+      if (allSaved) {
+        api.reportAllSaved()
+      } else {
+        api.reportCloseCancelled()
+        setStatusMessage('Cierre cancelado: no se han podido guardar todos los archivos')
+      }
     })
 
     return () => {
@@ -789,8 +910,7 @@ function App() {
           setCommandPaletteMode('command')
           setIsCommandPaletteOpen(true)
         } else {
-          setCommandPaletteMode('file')
-          setIsCommandPaletteOpen(true)
+          void handleExportPdf()
         }
       } else if (event.key === 't' || (event.key === 'n' && !event.shiftKey)) {
         event.preventDefault()
@@ -878,18 +998,20 @@ function App() {
 
       <div className="app-layout">
         {isSidebarOpen && (
-          <FileExplorer
-            currentDir={currentDir}
-            onCurrentDirChange={setCurrentDir}
-            activeFilePath={filePath}
-            activeFileContent={activeTab ? content : null}
-            onOpenFile={handleOpenFileFromExplorer}
-            recentFiles={recentFiles}
-            onRemoveRecentFile={handleRemoveRecentFile}
-            onClearRecentFiles={handleClearRecentFiles}
-            onHeadingClick={handleHeadingClick}
-            onSearchMatchClick={handleSearchMatchClick}
-          />
+          <Suspense fallback={null}>
+            <FileExplorer
+              currentDir={currentDir}
+              onCurrentDirChange={setCurrentDir}
+              activeFilePath={filePath}
+              activeFileContent={activeTab ? content : null}
+              onOpenFile={handleOpenFileFromExplorer}
+              recentFiles={recentFiles}
+              onRemoveRecentFile={handleRemoveRecentFile}
+              onClearRecentFiles={handleClearRecentFiles}
+              onHeadingClick={handleHeadingClick}
+              onSearchMatchClick={handleSearchMatchClick}
+            />
+          </Suspense>
         )}
 
         <div className="main-content">
@@ -925,40 +1047,58 @@ function App() {
             >
               {(viewMode === 'edit' || viewMode === 'split') && (
                 <section className="pane pane--editor">
-                  <MarkdownEditor
-                    value={content}
-                    onChange={setContent}
-                    theme={theme}
-                    fontSize={config.fontSize}
-                    fontFamily={config.fontFamily}
-                    lineHeight={config.lineHeight}
-                    tabSize={config.tabSize}
-                    vimMode={config.vimMode}
-                    focusMode={focusMode}
-                    onScroll={viewMode === 'split' ? handleEditorScroll : undefined}
-                    editorRef={viewMode === 'split' ? editorHandleRef : undefined}
-                    onPasteImage={handlePasteImage}
-                  />
+                  <Suspense fallback={null}>
+                    <MarkdownEditor
+                      value={content}
+                      onChange={setContent}
+                      theme={theme}
+                      fontSize={config.fontSize}
+                      fontFamily={config.fontFamily}
+                      lineHeight={config.lineHeight}
+                      tabSize={config.tabSize}
+                      vimMode={config.vimMode}
+                      focusMode={focusMode}
+                      onScroll={viewMode === 'split' ? handleEditorScroll : undefined}
+                      editorRef={viewMode === 'split' ? editorHandleRef : undefined}
+                      onPasteImage={handlePasteImage}
+                    />
+                  </Suspense>
                 </section>
               )}
 
               {viewMode === 'split' && (
                 <div
                   className="workspace-resizer"
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Redimensionar editor y vista previa"
+                  aria-valuemin={15}
+                  aria-valuemax={85}
+                  aria-valuenow={Math.round(splitRatio)}
+                  tabIndex={0}
                   onMouseDown={handleResizeStart}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                    event.preventDefault()
+                    const delta = event.key === 'ArrowLeft' ? -5 : 5
+                    setSplitRatio((current) => Math.min(Math.max(current + delta, 15), 85))
+                  }}
                 />
               )}
 
               {(viewMode === 'preview' || viewMode === 'split') && (
                 <section className="pane pane--preview">
-                  <MarkdownPreview
-                    content={content}
-                    filePath={filePath}
-                    theme={theme}
-                    onScroll={viewMode === 'split' ? handlePreviewScroll : undefined}
-                    previewRef={viewMode === 'split' ? previewHandleRef : undefined}
-                    onWikiLinkClick={handleWikiLinkClick}
-                  />
+                  <Suspense fallback={null}>
+                    <MarkdownPreview
+                      content={content}
+                      filePath={filePath}
+                      theme={theme}
+                      onScroll={viewMode === 'split' ? handlePreviewScroll : undefined}
+                      previewRef={viewMode === 'split' ? previewHandleRef : undefined}
+                      onWikiLinkClick={handleWikiLinkClick}
+                      onTaskToggle={handleTaskToggle}
+                    />
+                  </Suspense>
                 </section>
               )}
             </main>
@@ -994,24 +1134,28 @@ function App() {
 
       <DropOverlay visible={isDragging} />
       {toastMessage && (
-        <div className="toast-notification">
+        <div className="toast-notification" role="status" aria-live="polite">
           <span>{toastMessage}</span>
         </div>
       )}
-      <CommandPalette
-        isOpen={isCommandPaletteOpen}
-        mode={commandPaletteMode}
-        workspacePath={currentDir ? currentDir.path : null}
-        onClose={() => setIsCommandPaletteOpen(false)}
-        onOpenFile={handleOpenFileFromExplorer}
-        onExecuteCommand={handleExecuteCommand}
-      />
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        config={config}
-        onClose={() => setIsSettingsOpen(false)}
-        onSaveConfig={handleSaveConfig}
-      />
+      <Suspense fallback={null}>
+        <CommandPalette
+          isOpen={isCommandPaletteOpen}
+          mode={commandPaletteMode}
+          workspacePath={currentDir ? currentDir.path : null}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          onOpenFile={handleOpenFileFromExplorer}
+          onExecuteCommand={handleExecuteCommand}
+        />
+      </Suspense>
+      <Suspense fallback={null}>
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          config={config}
+          onClose={() => setIsSettingsOpen(false)}
+          onSaveConfig={handleSaveConfig}
+        />
+      </Suspense>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import MarkdownIt from 'markdown-it'
+import DOMPurify from 'dompurify'
 import type Token from 'markdown-it/lib/token.mjs'
 import type StateCore from 'markdown-it/lib/rules_core/state_core.mjs'
 import { katex as katexPlugin } from '@mdit/plugin-katex'
@@ -29,6 +30,17 @@ import swift from 'highlight.js/lib/languages/swift'
 import kotlin from 'highlight.js/lib/languages/kotlin'
 
 import { resolveImagePath } from './images'
+
+export function slugifyHeading(text: string): string {
+  const slug = text
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .replace(/\s+/g, '-')
+  return slug || 'section'
+}
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('js', javascript)
@@ -156,12 +168,12 @@ md.renderer.rules.heading_open = (tokens: Token[], idx: number, options: any, _e
   const token = tokens[idx]
   const nextToken = tokens[idx + 1]
   if (nextToken && nextToken.type === 'inline') {
-    const slug = nextToken.content
-      .toLowerCase()
-      .trim()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-    token.attrSet('id', slug)
+    const baseSlug = slugifyHeading(nextToken.content)
+    const env = (_env ?? {}) as { headingIds?: Record<string, number> }
+    env.headingIds ??= {}
+    const count = env.headingIds[baseSlug] ?? 0
+    env.headingIds[baseSlug] = count + 1
+    token.attrSet('id', count === 0 ? baseSlug : `${baseSlug}-${count}`)
   }
   return self.renderToken(tokens, idx, options)
 }
@@ -175,6 +187,7 @@ md.renderer.rules.heading_open = (tokens: Token[], idx: number, options: any, _e
 const BLOCK_TYPES_WITH_LINES = new Set([
   'paragraph_open',
   'heading_open',
+  'list_item_open',
   'blockquote_open',
   'ordered_list_open',
   'bullet_list_open',
@@ -222,5 +235,12 @@ md.renderer.rules.image = (tokens: Token[], idx: number, options: any, env: any,
 // ---------- public API ----------
 
 export function renderMarkdown(content: string, filePath: string | null = null): string {
-  return md.render(content, { filePath })
+  const rendered = md.render(content, { filePath })
+  return DOMPurify.sanitize(rendered, {
+    USE_PROFILES: { html: true, mathMl: true, svg: true },
+    FORBID_TAGS: ['embed', 'form', 'iframe', 'object', 'script'],
+    ADD_ATTR: ['data-line', 'data-target', 'data-language'],
+    ALLOWED_URI_REGEXP:
+      /^(?:(?:https?|mailto|wikilink|app-image):|data:image\/(?:gif|png|jpeg|webp);|[^:]*$)/i,
+  })
 }

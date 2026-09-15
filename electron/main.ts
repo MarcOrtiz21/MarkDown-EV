@@ -6,29 +6,135 @@ import { pathToFileURL } from 'node:url'
 
 
 // ─── Single instance lock ────────────────────────────────
-if (!app.requestSingleInstanceLock()) {
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) {
   app.quit()
+  process.exit(0)
 }
 
 let mainWindow: BrowserWindow | null = null
 let fileToOpen: string | null = null
+let rendererReady = false
 let isForceClosing = false
+let isQuitRequested = false
 let closeTimeout: ReturnType<typeof setTimeout> | null = null
+const allowedRoots = new Set<string>()
+const allowedRootsPath = () => path.join(app.getPath('userData'), 'allowed-roots.json')
+const MARKDOWN_FILE_REGEX = /\.(?:md|markdown|mdown|mkd|txt)$/i
+const MARKDOWN_EXTENSIONS = ['md', 'markdown', 'mdown', 'mkd', 'txt']
 
-app.on('second-instance', () => {
+// Finder may launch the app with the document path as an initial argument.
+// Queue it before the renderer is ready so React can consume it through the
+// existing app:ready-to-open handshake.
+const initialFilePath = process.argv
+  .slice(1)
+  .find((argument) => path.isAbsolute(argument) && MARKDOWN_FILE_REGEX.test(argument))
+if (initialFilePath) {
+  fileToOpen = normalizePath(initialFilePath)
+  allowRoot(path.dirname(fileToOpen))
+}
+
+function normalizePath(filePath: string): string {
+  return path.resolve(filePath)
+}
+
+/**
+ * Read text documents without turning UTF-16 Markdown files into gibberish.
+ * A surprising number of files created by Windows editors include a BOM.
+ */
+async function readTextFile(filePath: string): Promise<string> {
+  const buffer = await fs.readFile(filePath)
+
+  if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) {
+    return new TextDecoder('utf-16le').decode(buffer.subarray(2))
+  }
+
+  if (buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff) {
+    const littleEndianBuffer = Buffer.from(buffer.subarray(2))
+    for (let index = 0; index + 1 < littleEndianBuffer.length; index += 2) {
+      const first = littleEndianBuffer[index]
+      littleEndianBuffer[index] = littleEndianBuffer[index + 1]
+      littleEndianBuffer[index + 1] = first
+    }
+    return new TextDecoder('utf-16le').decode(littleEndianBuffer)
+  }
+
+  const content = buffer.toString('utf-8')
+  return content.charCodeAt(0) === 0xfeff ? content.slice(1) : content
+}
+
+function persistAllowedRoots() {
+  try {
+    writeFileSync(allowedRootsPath(), JSON.stringify([...allowedRoots], null, 2), 'utf-8')
+  } catch (err) {
+    console.error('Error saving allowed file roots:', err)
+  }
+}
+
+function loadAllowedRoots() {
+  try {
+    const stored = JSON.parse(readFileSync(allowedRootsPath(), 'utf-8'))
+    if (Array.isArray(stored)) {
+      for (const root of stored) {
+        if (typeof root === 'string' && path.isAbsolute(root)) {
+          allowedRoots.add(normalizePath(root))
+        }
+      }
+    }
+  } catch {
+    // No persisted roots yet, or an older/corrupt preferences file.
+  }
+}
+
+function allowRoot(rootPath: string) {
+  const normalized = normalizePath(rootPath)
+  if (allowedRoots.has(normalized)) return
+  allowedRoots.add(normalized)
+  if (app.isReady()) persistAllowedRoots()
+}
+
+function isAllowedPath(targetPath: string): boolean {
+  const resolved = normalizePath(targetPath)
+  for (const root of allowedRoots) {
+    const relative = path.relative(root, resolved)
+    if (relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))) {
+      return true
+    }
+  }
+  return false
+}
+
+function isSafeFileName(fileName: string): boolean {
+  return Boolean(fileName) &&
+    fileName !== '.' &&
+    fileName !== '..' &&
+    !fileName.includes('/') &&
+    !fileName.includes('\\') &&
+    !fileName.includes('\0')
+}
+
+function openFileFromMain(filePath: string) {
+  allowRoot(path.dirname(filePath))
+  fileToOpen = filePath
+  if (mainWindow && mainWindow.webContents && rendererReady) {
+    mainWindow.webContents.send('file:open-from-main', filePath)
+  }
+}
+
+app.on('second-instance', (_event, commandLine) => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.focus()
   }
+  const filePath = commandLine
+    .slice(1)
+    .find((argument) => MARKDOWN_FILE_REGEX.test(argument))
+  if (filePath) openFileFromMain(filePath)
 })
 
 app.on('open-file', (event, filePath) => {
   event.preventDefault()
-  if (mainWindow && mainWindow.webContents) {
-    mainWindow.webContents.send('file:open-from-main', filePath)
-  } else {
-    fileToOpen = filePath
-  }
+  openFileFromMain(filePath)
 })
 
 // ─── Window state persistence ────────────────────────────
@@ -79,9 +185,11 @@ function createWindow() {
     backgroundColor: '#1e1e1e',
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Keep the preload bridge compatible with packaged Electron builds.
+      // The renderer remains isolated through contextIsolation and nodeIntegration=false.
       sandbox: false,
     },
   })
@@ -90,6 +198,9 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show()
+  })
+  mainWindow.webContents.once('did-finish-load', () => {
+    rendererReady = true
   })
 
   // Throttled window-geometry save
@@ -116,18 +227,20 @@ function createWindow() {
     }
   })
 
-  // Prevent in-app navigation when clicking external links
+  // Keep the renderer on the application page. External links are opened
+  // explicitly in the user's browser; local file URLs must never navigate
+  // the Electron renderer.
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173'
-    // Allow navigation to the dev server or file:// (production)
-    if (!url.startsWith(devServerUrl) && !url.startsWith('file://')) {
-      event.preventDefault()
+    event.preventDefault()
+    if (/^(?:https?:\/\/|mailto:)/i.test(url)) {
       void shell.openExternal(url)
     }
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    if (/^(?:https?:\/\/|mailto:)/i.test(url)) {
+      void shell.openExternal(url)
+    }
     return { action: 'deny' }
   })
 
@@ -139,8 +252,17 @@ function createWindow() {
   }
 
   mainWindow.on('closed', () => {
+    const shouldQuit = isQuitRequested
     mainWindow = null
-    isForceClosing = false
+    rendererReady = false
+    if (shouldQuit) {
+      isQuitRequested = false
+      // The original before-quit event was prevented while the renderer
+      // checked dirty tabs. Re-issue the quit now that closing is approved.
+      app.quit()
+    } else {
+      isForceClosing = false
+    }
   })
 }
 
@@ -242,8 +364,7 @@ function buildMenu() {
 }
 
 async function exportHtmlToPdf(html: string, suggestedName?: string) {
-  const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
-  const result = await dialog.showSaveDialog(win!, {
+  const result = await dialog.showSaveDialog({
     defaultPath: suggestedName?.replace(/\.(md|markdown|txt)$/i, '.pdf') ?? 'documento.pdf',
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   })
@@ -272,6 +393,27 @@ async function exportHtmlToPdf(html: string, suggestedName?: string) {
       }
     })
 
+    await pdfWindow.webContents.executeJavaScript(`
+      (() => {
+        const waitForImage = (image) => {
+          if (image.complete) return Promise.resolve()
+          return new Promise((resolve) => {
+            let settled = false
+            const finish = () => {
+              if (settled) return
+              settled = true
+              resolve()
+            }
+            image.addEventListener('load', finish, { once: true })
+            image.addEventListener('error', finish, { once: true })
+            setTimeout(finish, 3000)
+          })
+        }
+        return Promise.all(Array.from(document.images, waitForImage))
+          .then(() => document.fonts?.ready)
+      })()
+    `)
+
     const pdfBuffer = await pdfWindow.webContents.printToPDF({
       printBackground: true,
       margins: { marginType: 'default' },
@@ -287,11 +429,12 @@ async function exportHtmlToPdf(html: string, suggestedName?: string) {
 
 ipcMain.handle('dialog:openFile', async () => {
   try {
-    const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
-    const result = await dialog.showOpenDialog(win!, {
+    // Do not attach this panel to a possibly unfocused/destroyed renderer
+    // window. On macOS that can leave the native picker behind the app.
+    const result = await dialog.showOpenDialog({
       properties: ['openFile'],
       filters: [
-        { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd', 'txt'] },
+        { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
         { name: 'Todos los archivos', extensions: ['*'] },
       ],
     })
@@ -301,7 +444,8 @@ ipcMain.handle('dialog:openFile', async () => {
     }
 
     const filePath = result.filePaths[0]
-    const content = await fs.readFile(filePath, 'utf-8')
+    allowRoot(path.dirname(filePath))
+    const content = await readTextFile(filePath)
 
     return { filePath, content }
   } catch (err) {
@@ -311,12 +455,32 @@ ipcMain.handle('dialog:openFile', async () => {
 })
 
 ipcMain.handle('file:read', async (_event, filePath: string) => {
-  const content = await fs.readFile(filePath, 'utf-8')
-  return { filePath, content }
+  try {
+    if (!isAllowedPath(filePath)) {
+      return null
+    }
+    const content = await readTextFile(filePath)
+    return { filePath, content }
+  } catch (err) {
+    console.error('Error reading file:', err)
+    return null
+  }
+})
+
+ipcMain.handle('file:read-dropped', async (_event, filePath: string) => {
+  try {
+    if (!filePath || !path.isAbsolute(filePath)) return null
+    allowRoot(path.dirname(filePath))
+    const content = await readTextFile(filePath)
+    return { filePath, content }
+  } catch {
+    return null
+  }
 })
 
 ipcMain.handle('file:readAsDataUrl', async (_event, filePath: string) => {
   try {
+    if (!isAllowedPath(filePath)) return null
     const buffer = await fs.readFile(filePath)
     const ext = path.extname(filePath).slice(1).toLowerCase()
     const mimeTypes: Record<string, string> = {
@@ -341,15 +505,15 @@ ipcMain.handle(
   async (_event, content: string, currentPath?: string) => {
     try {
       if (currentPath) {
+        if (!isAllowedPath(currentPath)) return null
         await fs.writeFile(currentPath, content, 'utf-8')
         return { filePath: currentPath, saved: true }
       }
 
-      const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
-      const result = await dialog.showSaveDialog(win!, {
+      const result = await dialog.showSaveDialog({
         defaultPath: 'documento.md',
         filters: [
-          { name: 'Markdown', extensions: ['md'] },
+          { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
           { name: 'Todos los archivos', extensions: ['*'] },
         ],
       })
@@ -358,6 +522,7 @@ ipcMain.handle(
         return null
       }
 
+      allowRoot(path.dirname(result.filePath))
       await fs.writeFile(result.filePath, content, 'utf-8')
       return { filePath: result.filePath, saved: true }
     } catch (err) {
@@ -371,11 +536,10 @@ ipcMain.handle(
   'dialog:saveFileAs',
   async (_event, content: string, currentPath?: string) => {
     try {
-      const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
-      const result = await dialog.showSaveDialog(win!, {
+      const result = await dialog.showSaveDialog({
         defaultPath: currentPath ?? 'documento.md',
         filters: [
-          { name: 'Markdown', extensions: ['md'] },
+          { name: 'Markdown', extensions: MARKDOWN_EXTENSIONS },
           { name: 'Todos los archivos', extensions: ['*'] },
         ],
       })
@@ -384,6 +548,7 @@ ipcMain.handle(
         return null
       }
 
+      allowRoot(path.dirname(result.filePath))
       await fs.writeFile(result.filePath, content, 'utf-8')
       return { filePath: result.filePath, saved: true }
     } catch (err) {
@@ -409,8 +574,7 @@ ipcMain.handle(
   'export:html',
   async (_event, htmlContent: string, suggestedName?: string) => {
     try {
-      const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
-      const result = await dialog.showSaveDialog(win!, {
+      const result = await dialog.showSaveDialog({
         defaultPath: suggestedName?.replace(/\.(md|markdown|txt)$/i, '.html') ?? 'documento.html',
         filters: [{ name: 'HTML Document', extensions: ['html'] }],
       })
@@ -429,6 +593,7 @@ ipcMain.handle(
 )
 
 ipcMain.handle('shell:openExternal', async (_event, url: string) => {
+  if (!/^https?:\/\//i.test(url)) return
   await shell.openExternal(url)
 })
 
@@ -456,14 +621,14 @@ let activeWatcher: ReturnType<typeof watch> | null = null
 
 ipcMain.handle('dialog:openDirectory', async () => {
   try {
-    const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined
-    const result = await dialog.showOpenDialog(win!, {
+    const result = await dialog.showOpenDialog({
       properties: ['openDirectory'],
     })
     if (result.canceled || result.filePaths.length === 0) {
       return null
     }
     const dirPath = result.filePaths[0]
+    allowRoot(dirPath)
     const dirName = path.basename(dirPath)
     return { path: dirPath, name: dirName }
   } catch (err) {
@@ -474,6 +639,7 @@ ipcMain.handle('dialog:openDirectory', async () => {
 
 ipcMain.handle('dir:list', async (_event, dirPath: string) => {
   try {
+    if (!isAllowedPath(dirPath)) return []
     const entries = await fs.readdir(dirPath, { withFileTypes: true })
     const files = entries
       .filter((entry) => !entry.name.startsWith('.'))
@@ -498,6 +664,7 @@ ipcMain.handle('dir:list', async (_event, dirPath: string) => {
 })
 
 ipcMain.handle('dir:watch', (_event, dirPath: string) => {
+  if (!isAllowedPath(dirPath)) return false
   if (activeWatcher) {
     activeWatcher.close()
     activeWatcher = null
@@ -522,6 +689,9 @@ ipcMain.handle('dir:unwatch', () => {
 
 ipcMain.handle('file:create', async (_event, parentDirPath: string, fileName: string) => {
   try {
+    if (!isAllowedPath(parentDirPath) || !isSafeFileName(fileName)) {
+      return { error: 'Ruta o nombre de archivo no válido' }
+    }
     const targetPath = path.join(
       parentDirPath,
       fileName.endsWith('.md') ? fileName : `${fileName}.md`
@@ -544,6 +714,17 @@ ipcMain.handle('file:create', async (_event, parentDirPath: string, fileName: st
 
 ipcMain.handle('file:saveClipboardImage', async (_event, activeFilePath: string, base64Data: string, imageName: string) => {
   try {
+    if (
+      !isAllowedPath(activeFilePath) ||
+      !isSafeFileName(imageName) ||
+      !/^[a-z0-9._-]+$/i.test(imageName) ||
+      !/^[a-z]+;base64,[a-z0-9+/=\s]+$/i.test(`image/${path.extname(imageName).slice(1)};base64,${base64Data}`)
+    ) {
+      return { error: 'Ruta o imagen no válida' }
+    }
+    if (base64Data.length > 25 * 1024 * 1024) {
+      return { error: 'La imagen supera el límite de 25 MB' }
+    }
     const activeDir = path.dirname(activeFilePath)
     const assetsDir = path.join(activeDir, 'assets')
 
@@ -576,6 +757,7 @@ async function performWorkspaceSearch(dirPath: string, query: string): Promise<a
   ])
 
   async function searchDir(currentPath: string) {
+    if (results.length >= 500) return
     let entries
     try {
       entries = await fs.readdir(currentPath, { withFileTypes: true })
@@ -592,16 +774,18 @@ async function performWorkspaceSearch(dirPath: string, query: string): Promise<a
       if (entry.isDirectory()) {
         await searchDir(fullPath)
       } else if (entry.isFile()) {
-        const isText = /\.md$/i.test(entry.name) || /\.txt$/i.test(entry.name)
+        const isText = MARKDOWN_FILE_REGEX.test(entry.name)
         if (!isText) continue
 
         try {
-          const content = await fs.readFile(fullPath, 'utf-8')
+          const stats = await fs.stat(fullPath)
+          if (stats.size > 5 * 1024 * 1024) continue
+          const content = await readTextFile(fullPath)
           const lines = content.split('\n')
           const matches: { lineNumber: number; lineText: string }[] = []
 
           for (let i = 0; i < lines.length; i++) {
-            if (lines[i].toLowerCase().includes(lowerQuery)) {
+            if (lines[i].toLowerCase().includes(lowerQuery) && matches.length < 100) {
               matches.push({
                 lineNumber: i + 1,
                 lineText: lines[i].trim(),
@@ -628,11 +812,11 @@ async function performWorkspaceSearch(dirPath: string, query: string): Promise<a
 }
 
 ipcMain.handle('dir:search', async (_event, dirPath: string, query: string) => {
-  if (!query.trim()) return []
+  if (!query.trim() || !isAllowedPath(dirPath)) return []
   return performWorkspaceSearch(dirPath, query)
 })
 
-async function findFileRecursively(dir: string, mdName: string, txtName: string): Promise<string | null> {
+async function findFileRecursively(dir: string, noteNames: readonly string[]): Promise<string | null> {
   const IGNORED_FOLDERS = new Set(['node_modules', '.git', 'dist', 'dist-electron', 'release', 'assets'])
 
   async function search(currentPath: string): Promise<string | null> {
@@ -653,7 +837,7 @@ async function findFileRecursively(dir: string, mdName: string, txtName: string)
         if (found) return found
       } else if (entry.isFile()) {
         const lowerName = entry.name.toLowerCase()
-        if (lowerName === mdName.toLowerCase() || lowerName === txtName.toLowerCase()) {
+        if (noteNames.some((noteName) => lowerName === noteName.toLowerCase())) {
           return fullPath
         }
       }
@@ -666,16 +850,17 @@ async function findFileRecursively(dir: string, mdName: string, txtName: string)
 
 ipcMain.handle('file:resolveWikiLink', async (_event, { workspaceDirPath, activeFilePath, noteName }) => {
   const cleanNoteName = noteName.trim()
-  if (!cleanNoteName) {
+  if (!cleanNoteName || !isSafeFileName(cleanNoteName)) {
     return { error: 'Nombre de nota inválido' }
   }
 
+  const noteNames = MARKDOWN_EXTENSIONS.map((extension) => `${cleanNoteName}.${extension}`)
   const mdName = `${cleanNoteName}.md`
-  const txtName = `${cleanNoteName}.txt`
 
   // 1. Search recursively in workspace if opened
   if (workspaceDirPath) {
-    const foundPath = await findFileRecursively(workspaceDirPath, mdName, txtName)
+    if (!isAllowedPath(workspaceDirPath)) return { error: 'Workspace no autorizado' }
+    const foundPath = await findFileRecursively(workspaceDirPath, noteNames)
     if (foundPath) {
       return { filePath: foundPath, created: false }
     }
@@ -691,6 +876,7 @@ ipcMain.handle('file:resolveWikiLink', async (_event, { workspaceDirPath, active
     return { error: 'No hay ninguna carpeta de espacio de trabajo o archivo activo para crear la nota' }
   }
 
+  if (!isAllowedPath(targetDir)) return { error: 'Ruta de destino no autorizada' }
   const targetPath = path.join(targetDir, mdName)
   try {
     // Check if it already exists locally just in case
@@ -724,7 +910,7 @@ async function scanDirectoryRecursively(dirPath: string): Promise<any[]> {
       if (entry.isDirectory()) {
         await scan(fullPath)
       } else if (entry.isFile()) {
-        const isTarget = /\.md$/i.test(entry.name) || /\.txt$/i.test(entry.name)
+        const isTarget = MARKDOWN_FILE_REGEX.test(entry.name)
         if (isTarget) {
           results.push({
             name: entry.name,
@@ -740,6 +926,7 @@ async function scanDirectoryRecursively(dirPath: string): Promise<any[]> {
 }
 
 ipcMain.handle('dir:allFiles', async (_event, dirPath: string) => {
+  if (!isAllowedPath(dirPath)) return []
   return scanDirectoryRecursively(dirPath)
 })
 
@@ -750,6 +937,10 @@ ipcMain.handle('app:ready-to-open', () => {
     return temp
   }
   return null
+})
+
+ipcMain.on('app:file-opened', (_event, filePath: string) => {
+  if (fileToOpen === filePath) fileToOpen = null
 })
 
 // ─── Unsaved-changes close flow ──────────────────────────
@@ -790,8 +981,10 @@ ipcMain.on('app:dirty-state', (_event, hasDirty: boolean) => {
   } else if (choice === 1) {
     isForceClosing = true
     mainWindow?.close()
+  } else {
+    // The native confirmation cancelled the pending quit request.
+    isQuitRequested = false
   }
-  // 2 = Cancelar → no hacer nada
 })
 
 ipcMain.on('app:all-saved', () => {
@@ -800,16 +993,28 @@ ipcMain.on('app:all-saved', () => {
   mainWindow?.close()
 })
 
+ipcMain.on('app:cancel-close', () => {
+  clearCloseTimeout()
+  isQuitRequested = false
+  isForceClosing = false
+})
+
 
 app.whenReady().then(() => {
+  loadAllowedRoots()
   protocol.handle('app-image', (request) => {
-    const encoded = request.url.slice('app-image://'.length)
+    const payload = request.url.slice('app-image://'.length)
+    const encoded = payload.startsWith('local/') ? payload.slice('local/'.length) : payload
     const filePath = decodeURIComponent(encoded)
+    if (!isAllowedPath(filePath)) {
+      return new Response('Not found', { status: 404 })
+    }
     return net.fetch(pathToFileURL(filePath).href)
   })
 
   buildMenu()
   createWindow()
+  persistAllowedRoots()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -818,9 +1023,13 @@ app.whenReady().then(() => {
   })
 })
 
-// On macOS, ⌘Q triggers before-quit before close
-app.on('before-quit', () => {
-  isForceClosing = true
+// ⌘Q emits before-quit before the window's close event. Pause quitting while
+// the renderer checks and resolves unsaved tabs.
+app.on('before-quit', (event) => {
+  if (isForceClosing || !mainWindow || mainWindow.isDestroyed()) return
+  event.preventDefault()
+  isQuitRequested = true
+  mainWindow.close()
 })
 
 app.on('window-all-closed', () => {

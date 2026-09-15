@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { getElectronAPI, hasElectronAPI } from '../lib/electron'
 import type { WorkspaceFile } from '../types/electron'
 import { FileIcon, SearchIcon } from './Icons'
@@ -102,6 +102,15 @@ export function CommandPalette({
     setSelectedIndex(0)
   }, [query])
 
+  const handleConfirm = useCallback((item: CommandOption | WorkspaceFile) => {
+    if ('action' in item) {
+      onExecuteCommand(item.action)
+    } else {
+      onOpenFile(item.path)
+    }
+    onClose()
+  }, [onExecuteCommand, onOpenFile, onClose])
+
   // Scroll active item into view
   useEffect(() => {
     const listEl = listRef.current
@@ -147,18 +156,7 @@ export function CommandPalette({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, filteredItems, selectedIndex, onClose])
-
-  const handleConfirm = (item: CommandOption | WorkspaceFile) => {
-    if ('action' in item) {
-      // Execute command action
-      onExecuteCommand(item.action)
-    } else {
-      // Open file
-      onOpenFile(item.path)
-    }
-    onClose()
-  }
+  }, [isOpen, filteredItems, selectedIndex, onClose, handleConfirm])
 
   // Get display path relative to workspace
   const getRelativePath = (absolutePath: string) => {
@@ -173,11 +171,19 @@ export function CommandPalette({
 
   return (
     <div className="command-palette-overlay" onClick={onClose}>
-      <div className="command-palette-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="command-palette-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="command-palette-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 id="command-palette-title" className="sr-only">Paleta de comandos</h2>
         <div className="command-palette-search">
           <SearchIcon className="command-palette-search-icon" size={16} />
           <input
             ref={inputRef}
+            aria-label="Buscar archivos o comandos"
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -190,7 +196,7 @@ export function CommandPalette({
           />
         </div>
 
-        <div ref={listRef} className="command-palette-list">
+        <div ref={listRef} className="command-palette-list" role="listbox" aria-label="Resultados">
           {filteredItems.length > 0 ? (
             filteredItems.map((item, index) => {
               const isActive = index === selectedIndex
@@ -202,6 +208,8 @@ export function CommandPalette({
                     key={item.id}
                     className={`command-palette-item command-item ${isActive ? 'active' : ''}`}
                     onClick={() => handleConfirm(item)}
+                    role="option"
+                    aria-selected={isActive}
                   >
                     <span className="command-palette-command-prefix">&gt;</span>
                     <span className="command-palette-item-name">{item.name}</span>
@@ -217,6 +225,8 @@ export function CommandPalette({
                     key={item.path}
                     className={`command-palette-item file-item ${isActive ? 'active' : ''}`}
                     onClick={() => handleConfirm(item)}
+                    role="option"
+                    aria-selected={isActive}
                   >
                     <FileIcon className="command-palette-file-icon" size={14} />
                     <div className="command-palette-file-info">

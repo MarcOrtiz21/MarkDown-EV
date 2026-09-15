@@ -15,6 +15,8 @@ const electronAPI = {
 
   readFile: (filePath: string): Promise<OpenFileResult> =>
     ipcRenderer.invoke('file:read', filePath),
+  readDroppedFile: (file: File): Promise<OpenFileResult> =>
+    ipcRenderer.invoke('file:read-dropped', webUtils.getPathForFile(file)),
 
   readAsDataUrl: (filePath: string): Promise<string | null> =>
     ipcRenderer.invoke('file:readAsDataUrl', filePath),
@@ -76,6 +78,8 @@ const electronAPI = {
 
   checkFileToOpen: (): Promise<string | null> =>
     ipcRenderer.invoke('app:ready-to-open'),
+  acknowledgeFileOpen: (filePath: string): void =>
+    ipcRenderer.send('app:file-opened', filePath),
 
   onDirectoryChanged: (callback: (info: { eventType: string; filename: string | null }) => void) => {
     const handler = (_event: any, info: { eventType: string; filename: string | null }) => callback(info)
@@ -131,6 +135,7 @@ const electronAPI = {
   },
   reportDirtyState: (hasDirty: boolean): void => { ipcRenderer.send('app:dirty-state', hasDirty) },
   reportAllSaved: (): void => { ipcRenderer.send('app:all-saved') },
+  reportCloseCancelled: (): void => { ipcRenderer.send('app:cancel-close') },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

@@ -2,14 +2,6 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { renderMarkdown } from '../lib/markdown'
 import { getElectronAPI, hasElectronAPI } from '../lib/electron'
 import type { Theme } from '../lib/theme'
-import mermaid from 'mermaid'
-
-// Initialize mermaid
-mermaid.initialize({
-  startOnLoad: false,
-  securityLevel: 'loose',
-})
-
 type MarkdownPreviewProps = {
   content: string
   filePath: string | null
@@ -17,6 +9,7 @@ type MarkdownPreviewProps = {
   onScroll?: (sourceLine: number) => void
   previewRef?: React.MutableRefObject<{ scrollToLine: (line: number) => void } | null>
   onWikiLinkClick?: (noteName: string) => void
+  onTaskToggle?: (sourceLine: number, checked: boolean) => void
 }
 
 export function MarkdownPreview({
@@ -26,6 +19,7 @@ export function MarkdownPreview({
   onScroll,
   previewRef,
   onWikiLinkClick,
+  onTaskToggle,
 }: MarkdownPreviewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const html = useMemo(() => renderMarkdown(content, filePath), [content, filePath])
@@ -41,20 +35,23 @@ export function MarkdownPreview({
     if (!container) return
 
     container.innerHTML = html
-
-    // Re-initialize mermaid with current theme
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: theme === 'dark' ? 'dark' : 'default',
+    container.querySelectorAll<HTMLInputElement>('input.task-list-item-checkbox').forEach((checkbox) => {
+      checkbox.disabled = false
+      checkbox.setAttribute('aria-label', 'Marcar tarea')
     })
 
-    // Render mermaid diagrams
     const mermaidNodes = container.querySelectorAll<HTMLElement>('.mermaid')
     if (mermaidNodes.length > 0) {
-      mermaid.run({
-        nodes: mermaidNodes,
-      }).catch(() => {
-        // Silent catch for syntax errors while typing
+      void import('mermaid').then(({ default: mermaid }) => {
+        if (!container.isConnected) return
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: theme === 'dark' ? 'dark' : 'default',
+          securityLevel: 'strict',
+        })
+        return mermaid.run({ nodes: mermaidNodes }).catch(() => {
+          // Silent catch for syntax errors while typing
+        })
       })
     }
 
@@ -67,6 +64,7 @@ export function MarkdownPreview({
       btn.type = 'button'
       btn.className = 'code-copy-btn'
       btn.title = 'Copiar código'
+      btn.setAttribute('aria-label', 'Copiar código')
       btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>`
       
       pre.style.position = 'relative'
@@ -103,6 +101,15 @@ export function MarkdownPreview({
       }
 
       // 2. Handle links click (external + wikilinks)
+      const checkbox = target.closest('input[type="checkbox"]') as HTMLInputElement | null
+      if (checkbox && onTaskToggle) {
+        event.preventDefault()
+        const listItem = checkbox.closest('[data-line]') as HTMLElement | null
+        const sourceLine = Number.parseInt(listItem?.dataset.line ?? '', 10)
+        if (!Number.isNaN(sourceLine)) onTaskToggle(sourceLine, !checkbox.checked)
+        return
+      }
+
       const anchor = target.closest('a')
       if (anchor) {
         const href = anchor.getAttribute('href')
@@ -125,7 +132,7 @@ export function MarkdownPreview({
 
     container.addEventListener('click', onClick)
     return () => container.removeEventListener('click', onClick)
-  }, [onWikiLinkClick])
+  }, [onWikiLinkClick, onTaskToggle])
 
   // Expose imperative scrollToLine
   useEffect(() => {
@@ -196,11 +203,14 @@ export function MarkdownPreview({
     }
   }, [])
 
-  return (
-    <div
-      ref={containerRef}
-      className="markdown-preview prose"
-      onScroll={handleScroll}
-    />
-  )
+  useEffect(() => {
+    const container = containerRef.current
+    const scrollParent = container?.closest('.pane--preview')
+    if (!scrollParent) return
+
+    scrollParent.addEventListener('scroll', handleScroll, { passive: true })
+    return () => scrollParent.removeEventListener('scroll', handleScroll)
+  }, [handleScroll])
+
+  return <div ref={containerRef} className="markdown-preview prose" />
 }

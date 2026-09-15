@@ -33,6 +33,18 @@ export default defineConfig(async () => ({
       },
       preload: {
         input: 'electron/preload.ts',
+        vite: {
+          build: {
+            rollupOptions: {
+              output: {
+                // package.json uses ESM, but Electron's preload bridge is
+                // bundled as CommonJS because it uses contextBridge/require.
+                // Keep the extension explicit so Node does not parse CJS as ESM.
+                entryFileNames: 'preload.cjs',
+              },
+            },
+          },
+        },
       },
     })),
   ],

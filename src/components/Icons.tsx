@@ -4,6 +4,23 @@ type IconProps = React.SVGProps<SVGSVGElement> & {
   size?: number | string
 }
 
+export function MarkDownLogoIcon({ size = 24, className, ...props }: IconProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      className={className}
+      aria-hidden="true"
+      {...props}
+    >
+      <rect x="1" y="1" width="30" height="30" rx="7" fill="#5B16B8" />
+      <path d="M7.5 23V10.5C7.5 9.25 9.1 8.75 9.9 9.75L14.4 15.1L18.9 9.75C19.7 8.75 21.5 9.25 21.5 10.5V24M18.1 20.4L21.5 24.25L24.9 20.4" fill="none" stroke="#FFFFFF" strokeWidth="3.15" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function SidebarToggleIcon({ size = 16, className, ...props }: IconProps) {
   return (
     <svg
@@ -338,4 +355,3 @@ export function SettingsIcon({ size = 16, className, ...props }: IconProps) {
     </svg>
   )
 }
-

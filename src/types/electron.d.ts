@@ -27,6 +27,7 @@ export type WorkspaceFile = {
 export type ElectronAPI = {
   openFile: () => Promise<OpenFileResult>
   readFile: (filePath: string) => Promise<OpenFileResult>
+  readDroppedFile: (file: File) => Promise<OpenFileResult>
   readAsDataUrl: (filePath: string) => Promise<string | null>
   getPathForFile: (file: File) => string
   saveFile: (content: string, currentPath?: string) => Promise<SaveFileResult>
@@ -46,6 +47,7 @@ export type ElectronAPI = {
   searchInDirectory: (dirPath: string, query: string) => Promise<FileSearchResult[]>
   getAllFiles: (dirPath: string) => Promise<WorkspaceFile[]>
   checkFileToOpen: () => Promise<string | null>
+  acknowledgeFileOpen: (filePath: string) => void
   resolveWikiLink: (
     workspaceDirPath: string | null,
     activeFilePath: string | null,
@@ -58,6 +60,7 @@ export type ElectronAPI = {
   onSaveAllThenClose: (callback: () => void) => () => void
   reportDirtyState: (hasDirty: boolean) => void
   reportAllSaved: () => void
+  reportCloseCancelled: () => void
 }
 
 declare global {

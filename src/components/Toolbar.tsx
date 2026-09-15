@@ -1,5 +1,5 @@
 import type { Theme } from '../lib/theme'
-import { SunIcon, MoonIcon, FileIcon, SettingsIcon, SidebarToggleIcon } from './Icons'
+import { SunIcon, MoonIcon, FileIcon, MarkDownLogoIcon, SettingsIcon, SidebarToggleIcon } from './Icons'
 
 export type ViewMode = 'edit' | 'split' | 'preview'
 
@@ -14,7 +14,7 @@ export function DropOverlay({ visible }: DropOverlayProps) {
     <div className="drop-overlay">
       <div className="drop-overlay__content">
         <FileIcon className="drop-overlay__icon" size={48} />
-        <p>Suelta el archivo .md para abrirlo</p>
+        <p>Suelta un archivo Markdown (.md, .markdown, .mdown, .mkd o .txt)</p>
       </div>
     </div>
   )
@@ -79,12 +79,16 @@ export function Toolbar({
             type="button"
             className={`action-btn action-btn--icon ${isSidebarOpen ? 'action-btn--accent' : ''}`}
             onClick={onSidebarToggle}
+            aria-label={isSidebarOpen ? 'Ocultar menú lateral' : 'Mostrar menú lateral'}
             title={isSidebarOpen ? 'Ocultar menú lateral' : 'Mostrar menú lateral (Archivos/Esquema/Buscar)'}
           >
             <SidebarToggleIcon size={14} />
           </button>
         )}
-        <span className="app-name">MarkDown EV</span>
+        <span className="app-brand" aria-label="MarkDown EV">
+          <MarkDownLogoIcon className="app-logo" size={24} />
+          <span className="app-name">MarkDown EV</span>
+        </span>
         <span className="file-name">{title}</span>
       </div>
 
@@ -108,6 +112,7 @@ export function Toolbar({
             type="button"
             className={`action-btn ${focusMode ? 'action-btn--accent' : ''}`}
             onClick={onFocusModeToggle}
+            aria-pressed={focusMode}
             title="Alternar Modo Enfoque"
           >
             Enfoque
@@ -127,6 +132,7 @@ export function Toolbar({
           type="button"
           className="action-btn action-btn--icon"
           onClick={onThemeToggle}
+            aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
           title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
         >
           {theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />}
@@ -135,6 +141,7 @@ export function Toolbar({
           type="button"
           className="action-btn action-btn--icon"
           onClick={onSettingsOpen}
+          aria-label="Preferencias"
           title="Preferencias"
         >
           <SettingsIcon size={14} />
@@ -175,4 +182,3 @@ export function Toolbar({
     </header>
   )
 }
-

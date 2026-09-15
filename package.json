@@ -3,17 +3,21 @@
   "private": true,
   "version": "0.1.0",
   "description": "Visor-editor de Markdown minimalista para macOS",
-  "author": "Marc",
+  "author": "Marc Ortiz",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "dev:fresh": "npm run dev:stop && rm -rf node_modules/.vite && vite",
     "dev:stop": "lsof -ti:5173 2>/dev/null | xargs kill -9 2>/dev/null || true; pkill -f 'Electron.*MarkDown EV' 2>/dev/null || true; pkill -f 'Electron.*markdown-ev' 2>/dev/null || true",
+    "generate:logo": "node scripts/generate-logo.mjs",
+    "prebuild": "npm run generate:logo",
     "build": "tsc -b && vite build",
     "dist": "npm run build && electron-builder",
     "postinstall": "mkdir -p public/katex && cp -R node_modules/katex/dist/. public/katex/",
     "lint": "oxlint",
+    "test": "vitest run",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -27,16 +31,20 @@
     "@mdit/plugin-katex": "^1.0.1",
     "@replit/codemirror-vim": "^6.3.0",
     "codemirror": "^6.0.2",
+    "dompurify": "^3.4.15",
     "highlight.js": "^11.11.1",
     "katex": "^0.17.0",
     "markdown-it": "^14.1.1",
     "markdown-it-footnote": "^4.0.0",
     "markdown-it-task-lists": "^2.1.1",
-    "mermaid": "^11.16.0",
+    "mermaid": "^11.17.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/dompurify": "^3.0.5",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
@@ -45,11 +53,13 @@
     "concurrently": "^9.2.1",
     "electron": "^40.8.0",
     "electron-builder": "^26.8.1",
+    "jsdom": "^29.1.1",
     "oxlint": "^1.71.0",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
     "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^4.1.10",
     "wait-on": "^9.0.4"
   },
   "build": {
@@ -70,7 +80,13 @@
       ],
       "fileAssociations": [
         {
-          "ext": ["md", "markdown", "mdown", "mkd"],
+          "ext": [
+            "md",
+            "markdown",
+            "mdown",
+            "mkd",
+            "txt"
+          ],
           "name": "Markdown Document",
           "role": "Editor"
         }
