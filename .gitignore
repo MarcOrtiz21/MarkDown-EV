@@ -14,6 +14,12 @@ dist-electron
 release
 *.local
 
+# Swift app
+MarkDownEV-Swift/.build
+MarkDownEV-Swift/.swiftpm
+MarkDownEV-Swift/build
+MarkDownEV-Swift/Resources/Preview
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

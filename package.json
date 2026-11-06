@@ -15,6 +15,8 @@
     "prebuild": "npm run generate:logo",
     "build": "tsc -b && vite build",
     "dist": "npm run build && electron-builder",
+    "build:preview": "vite build --config vite.preview.config.ts",
+    "mac": "MarkDownEV-Swift/scripts/build-app.sh",
     "postinstall": "mkdir -p public/katex && cp -R node_modules/katex/dist/. public/katex/",
     "lint": "oxlint",
     "test": "vitest run",
